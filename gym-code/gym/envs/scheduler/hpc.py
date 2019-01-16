@@ -30,8 +30,8 @@ np.random.seed(1)
 class HpcEnv(gym.Env):
     def __init__(self, workload_file = ''):
         # workload_file = "./data/RICC-2010-2.swf"
-        super(HpcEnv, self).__init__(workload_file=workload_file)
         print ("loading workloads from dataset")
+        super(HpcEnv, self).__init__()
         self.workload_file = workload_file
         self.load = Workloads(workload_file)
         

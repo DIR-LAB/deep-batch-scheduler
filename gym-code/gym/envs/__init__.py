@@ -6,7 +6,7 @@ from gym.envs.registration import registry, register, make, spec
 register(
     id='Scheduler-v0',
     entry_point='gym.envs.scheduler:HpcEnv',
-    kwargs={'workload_files': ''}
+    kwargs={'workload_file' : ''}
 )
 
 # Algorithmic
