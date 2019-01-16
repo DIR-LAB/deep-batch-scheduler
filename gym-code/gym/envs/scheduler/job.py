@@ -89,9 +89,9 @@ class Job:
 
 class Workloads:
     all_jobs = []
-
     def __init__(self, path):
         self.max = 0
+        self.max_exec_time = 0
         with open(path) as fp:
             for line in fp:
                 if line.startswith(";"):
@@ -102,6 +102,9 @@ class Workloads:
                     continue
 
                 j = Job(line)
+                if j.run_time > self.max_exec_time:
+                    self.max_exec_time = j.run_time
+                    
                 self.all_jobs.append(j)
                 
                 if j.request_number_of_processors > self.max:
