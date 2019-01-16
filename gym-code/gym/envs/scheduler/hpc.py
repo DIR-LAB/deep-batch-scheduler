@@ -23,7 +23,7 @@ NUM_JOB_SCHEDULERS = 4
 # each job has features
 # submit_time, request_number_of_processors, request_time,
 # user_id, group_id, executable_number, queue_number
-JOB_FEATURES = 3
+JOB_FEATURES = 7
 
 MAX_JOBS_EACH_BATCH = 300
 
