@@ -29,7 +29,6 @@ np.random.seed(1)
 
 
 class HpcEnv(gym.Env):
-
     """The main HPC Environment class. 
     The main API methods that users of this class need to know are:
 
@@ -52,12 +51,19 @@ class HpcEnv(gym.Env):
     functionality over time.
     """
 
+    metadata = {
+        'render.modes': ['ansi']
+    }
+
     def __init__(self, workload_file = ''):
-        print ("loading workloads from dataset:", workload_file)
         super(HpcEnv, self).__init__()
-        self.workload_file = workload_file
-        self.load = Workloads(workload_file)
-        
+
+        print ("loading workloads from dataset:", workload_file)
+        self.loads = Workloads(workload_file)
+        self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
+
+        self.seed()
+
         self.job_queue = []
         self.running_jobs = []
         self.start_timestamp = 0
@@ -70,8 +76,7 @@ class HpcEnv(gym.Env):
         self.longest_run_time = 0
         self.longest_average_delay = 0
 
-        self.cluster = Cluster("Ricc", self.load.max_nodes, self.load.max_procs/self.load.max_nodes)
-
+        
         self.n_actions = max_queue_size
         self.n_features = max_queue_size * job_feature_size
     
@@ -210,7 +215,7 @@ class HpcEnv(gym.Env):
         index = self.start
         num = self.size
         for i in range(index, index + num):
-            if self.load[i].scheduled_time == 0:
+            if self.loads[i].scheduled_time == 0:
                 return False
         return True
 
@@ -221,18 +226,18 @@ class HpcEnv(gym.Env):
         for i in range(max_queue_size):
             self.job_queue[i] = Job(empty_job_str)
 
-        self.start = np.random.randint(0, self.load.size() - max_queue_size*2)
+        self.start = np.random.randint(0, self.loads.size() - max_queue_size*2)
         self.current_point = self.start
         #DOUBT
         self.size = np.random.randint(max_queue_size, max_queue_size * 2)
 
-        self.current_timestamp = self.load[self.start].submit_time
+        self.current_timestamp = self.loads[self.start].submit_time
         self.start_timestamp = self.current_timestamp
 
         """Generate Workloads: look back to fill the cluster"""
         for i in range(max_queue_size):
             index = self.start - 1 - i
-            job = self.load[index]
+            job = self.loads[index]
             if self.cluster.can_allocated(job):
                 self.running_jobs.append(job)
                 job.scheduled_time = self.current_timestamp
@@ -249,8 +254,8 @@ class HpcEnv(gym.Env):
         longest_delay = 0
         starter = self.running_jobs[-1].scheduled_time + self.running_jobs[-1].run_time
         for i in range(self.start, self.start + self.size):
-            starter += self.load[i].run_time
-            longest_delay += (starter - self.load[i].submit_time)
+            starter += self.loads[i].run_time
+            longest_delay += (starter - self.loads[i].submit_time)
         self.longest_run_time = starter
         self.longest_average_delay = float(longest_delay) / float(self.size)
         # print "longest run time: ", self.longest_run_time, " longest average delay: ", self.longest_average_delay
@@ -274,13 +279,13 @@ class HpcEnv(gym.Env):
             first_to_submit = sys.maxsize
             more_jobs_to_schedule = False
         else:
-            first_to_submit = self.load[self.current_point].submit_time
+            first_to_submit = self.loads[self.current_point].submit_time
 
         if more_jobs_to_schedule and more_jobs_running:
             if first_to_submit <= first_to_release_time:
                 for i in range(0, len(self.job_queue)):
                     if self.job_queue[i].job_id == 0:
-                        self.job_queue[i] = self.load[self.current_point]
+                        self.job_queue[i] = self.loads[self.current_point]
                         break
 
                 self.current_point += 1
@@ -298,7 +303,7 @@ class HpcEnv(gym.Env):
         elif more_jobs_to_schedule:
             for i in range(0, len(self.job_queue)):
                 if self.job_queue[i].job_id == 0:
-                    self.job_queue[i] = self.load[self.current_point]
+                    self.job_queue[i] = self.loads[self.current_point]
                     break
 
             self.current_point += 1
@@ -346,7 +351,7 @@ class HpcEnv(gym.Env):
             index = self.start
             num = self.size
             for i in range(index, index + num):
-                delay = self.load[i].scheduled_time - self.load[i].submit_time
+                delay = self.loads[i].scheduled_time - self.loads[i].submit_time
                 if delay > maximal_delay:
                     maximal_delay = delay
 
@@ -359,16 +364,16 @@ class HpcEnv(gym.Env):
             for i in range(self.workload_start, self.workload_start + self.workload_size):
                 request_nodes = int(
                     math.ceil(
-                        float(self.load[i].request_number_of_processors) / float(self.cluster.num_procs_per_node)))
-                consumed_node_hours += self.load[i].run_time * request_nodes
+                        float(self.loads[i].request_number_of_processors) / float(self.cluster.num_procs_per_node)))
+                consumed_node_hours += self.loads[i].run_time * request_nodes
 
             for i in range(index, index + num):
-                finish = self.load[i].scheduled_time + self.load[i].run_time
+                finish = self.loads[i].scheduled_time + self.loads[i].run_time
 
                 request_nodes = int(
-                    math.ceil(float(self.load[i].request_number_of_processors) / float(self.cluster.num_procs_per_node)))
+                    math.ceil(float(self.loads[i].request_number_of_processors) / float(self.cluster.num_procs_per_node)))
 
-                consumed_node_hours += self.load[i].run_time * request_nodes
+                consumed_node_hours += self.loads[i].run_time * request_nodes
 
                 if finish > maximal_runtime:
                     maximal_runtime = finish
@@ -389,4 +394,4 @@ class HpcEnv(gym.Env):
 if __name__ == "__main__":
     
     o = HpcEnv("/home/aaroh/Desktop/UNCC_SPRING'19/Dong Dai_IS /deep-batch-scheduler/code_to_use_for_workload_loading/data/RICC-2010-2.swf")
-    print(o.seed(),o.np_random.randint(1, o.load.size()))
+    print(o.seed(),o.np_random.randint(1, o.loads.size()))
