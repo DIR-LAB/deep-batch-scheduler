@@ -1,5 +1,14 @@
 from gym.envs.registration import registry, register, make, spec
 
+#Scheduler
+# ----------------------------------------
+
+register(
+    id='Scheduler-v0',
+    entry_point='gym.envs.scheduler:HpcEnv',
+    kwargs={'workload_files': ''}
+)
+
 # Algorithmic
 # ----------------------------------------
 
@@ -290,6 +299,9 @@ register(
     entry_point='gym.envs.mujoco:HumanoidStandupEnv',
     max_episode_steps=1000,
 )
+
+
+
 
 # Robotics
 # ----------------------------------------

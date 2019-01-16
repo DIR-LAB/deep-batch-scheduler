@@ -1,5 +1,6 @@
 import re
 
+
 class Job:
     """
     1. Job Number -- a counter field, starting from 1.
@@ -102,6 +103,7 @@ class Workloads:
 
                 j = Job(line)
                 self.all_jobs.append(j)
+                
                 if j.request_number_of_processors > self.max:
                     self.max = j.request_number_of_processors
         print ("Max Allocated Processors:", str(self.max), " max node:", self.max_nodes, " max procs:", self.max_procs)
@@ -113,11 +115,11 @@ class Workloads:
     def __getitem__(self, item):
         return self.all_jobs[item]
 
-
+'''
 if __name__ == "__main__":
     print ("Loading the workloads...")
     load = Workloads("./data/RICC-2010-2.swf")
-    print ("Finish loading the workloads...")
+    print ("Finish loading the workloads...jhvjhvjh", type(load[0]))
     print (load.max_nodes, load.max_procs)
     print (load[0].feature())
     print (load[1].feature())
@@ -125,3 +127,4 @@ if __name__ == "__main__":
     # empty_job_str = "0        0      0    0   0     0    0   0  0 0  0   0   0  0  0 0 0 0"
     # empty_job = Job(empty_job_str)
     # print (empty_job.job_id, empty_job.feature())
+'''

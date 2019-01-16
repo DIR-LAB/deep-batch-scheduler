@@ -127,6 +127,10 @@ gym/envs/robotics/fetch/slide.py
 gym/envs/robotics/hand/__init__.py
 gym/envs/robotics/hand/manipulate.py
 gym/envs/robotics/hand/reach.py
+gym/envs/scheduler/__init__.py
+gym/envs/scheduler/cluster.py
+gym/envs/scheduler/hpc.py
+gym/envs/scheduler/job.py
 gym/envs/tests/__init__.py
 gym/envs/tests/spec_list.py
 gym/envs/tests/test_determinism.py
