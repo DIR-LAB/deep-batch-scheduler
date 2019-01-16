@@ -1,10 +1,11 @@
 import numpy as np
 import math
-import gym
 import sys
 import os
-from gym.utils import seeding
+from six import StringIO, b
 
+import gym
+from gym.utils import seeding
 from gym.envs.scheduler.job import Job
 from gym.envs.scheduler.job import Workloads
 from gym.envs.scheduler.cluster import Cluster
@@ -14,19 +15,17 @@ from gym.envs.scheduler.cluster import Machine
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-max_queue_size = 50
-empty_job_str = "0        0      0    0   0     0    0   0  0 0  0   0   0  0  0 0 0 0"
-
-max_wait_time = 24 * 60 * 60 # assume maximal wait time is 24 hours.
-max_run_time = 12 * 60 * 60 # assume maximal runtime is 12 hours
+MAX_QUEUE_SIZE = 50
+MAX_WAIT_TIME = 24 * 60 * 60 # assume maximal wait time is 24 hours.
+MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
+NUM_JOB_SCHEDULERS = 4
 
 # each job has features
 # submit_time, request_number_of_processors, request_time,
 # user_id, group_id, executable_number, queue_number
-job_feature_size = 3
+JOB_FEATURES = 3
 
-np.random.seed(1)
-
+MAX_JOBS_EACH_BATCH = 300
 
 class HpcEnv(gym.Env):
     """The main HPC Environment class. 
@@ -52,7 +51,7 @@ class HpcEnv(gym.Env):
     """
 
     metadata = {
-        'render.modes': ['ansi']
+        'render.modes': ['human','ansi']
     }
 
     def __init__(self, workload_file = ''):
@@ -62,7 +61,10 @@ class HpcEnv(gym.Env):
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
 
-        self.seed()
+        self.seed(1)
+
+        self.action_space = NUM_JOB_SCHEDULERS
+        self.observation_space = JOB_FEATURES * MAX_QUEUE_SIZE + 1
 
         self.job_queue = []
         self.running_jobs = []
@@ -77,10 +79,10 @@ class HpcEnv(gym.Env):
         self.longest_average_delay = 0
 
         
-        self.n_actions = max_queue_size
-        self.n_features = max_queue_size * job_feature_size
+        self.n_actions = MAX_QUEUE_SIZE
+        self.n_features = MAX_QUEUE_SIZE * JOB_FEATURES
     
-    def render(self):
+    def render(self, mode='human'):
         """Renders the environment.
 
         The set of supported modes varies per environment. (And some
@@ -118,15 +120,23 @@ class HpcEnv(gym.Env):
                 else:
                     super(MyEnv, self).render(mode=mode) # just raise an exception
         """
-        return 0
+        outfile = StringIO() if mode == 'ansi' else sys.stdout
+        ''' 
+        # This code snippet is from frozonLake-v0. 
+        # We need to use the similar tech to viz our environment
+        row, col = self.s // self.ncol, self.s % self.ncol
+        desc = self.desc.tolist()
+        desc = [[c.decode('utf-8') for c in line] for line in desc]
+        desc[row][col] = utils.colorize(desc[row][col], "red", highlight=True)
+        if self.lastaction is not None:
+            outfile.write("  ({})\n".format(["Left","Down","Right","Up"][self.lastaction]))
+        else:
+            outfile.write("\n")
+        outfile.write("\n".join(''.join(line) for line in desc)+"\n")
+        '''
+        if mode != 'human':
+            return outfile
 
-    def close(self):
-        """Override _close in your subclass to perform any necessary cleanup.
-
-        Environments will automatically close() themselves when
-        garbage collected or when the program exits.
-        """
-        return 0
 
     def seed(self, seed=None):
         """Sets the seed for this env's random number generator(s).
@@ -169,10 +179,52 @@ class HpcEnv(gym.Env):
 
         Returns: observation (object): the initial observation of the
             space.
+
+        This is the place we formulate a random starting situation. 
+        There are certain rules to create it: 
+        1) randomly start from a job in the workload
+        2) randomly create running jobs to fill the queue
         """
-        self.cluster.reset()
-        self.random_start()
-        return 0
+        for i in range(MAX_QUEUE_SIZE):
+            self.job_queue[i] = Job()
+
+        self.start = self.np_random.randint(self.loads.size())
+        self.current_point = self.start
+
+        # the size of jobs scheduled in this batch
+        job_remainder = self.loads.size() - self.start # how many jobs are remainded in the workload
+        self.size = self.np_random.randint(min(job_remainder, MAX_JOBS_EACH_BATCH))
+
+        self.current_timestamp = self.loads[self.start].submit_time
+        self.start_timestamp = self.current_timestamp
+
+        # Generate random running jobs to fill the cluster.
+        # From a random starter, the running jobs and their resources utilization can be 
+        # anything. We need to fully generate them to train the agent.
+        # Strategy 1: random number of jobs + random request_number_of_processors + random run_time,
+        running_job_size = self.np_random.randint(MAX_JOBS_EACH_BATCH)
+        for i in range(running_job_size):
+            req_num_of_processors = self.np_random.randint(self.loads.max_procs)
+            runtime_of_job = self.np_random.randint(self.loads.max_exec_time)
+            job_tmp = Job()
+            job_tmp.job_id = (0 - i) # to be different from the normal jobs
+            job_tmp.request_number_of_processors = req_num_of_processors
+            job_tmp.run_time = runtime_of_job
+            if self.cluster.can_allocated(job_tmp):
+                self.running_jobs.append(job_tmp)
+                # assume job was randomly generated
+                job_tmp.scheduled_time = (self.current_timestamp - self.np_random.randint(runtime_of_job))
+                job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
+            else:
+                break
+
+        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+
+        #self.cluster.free_node
+        job_queue_vec = np.zeros(JOB_FEATURES * MAX_QUEUE_SIZE)
+        job_queue_vec[0:JOB_FEATURES+1] = self.loads[self.start].feature()
+        return np.append(job_queue_vec, self.cluster.free_node)
+
 
     def build_queue_vector(self):
         vector = np.array([])
@@ -180,7 +232,7 @@ class HpcEnv(gym.Env):
         for job in self.job_queue:
 
             if job.job_id == 0: # empty job
-                for i in range(job_feature_size):
+                for i in range(JOB_FEATURES):
                     vector = np.append(vector, [0])
                 continue
 
@@ -197,8 +249,8 @@ class HpcEnv(gym.Env):
             queue_number = job.queue_number
 
             wait_time = self.current_timestamp - submit_time
-            normalized_wait_time = min(1, float(wait_time) / float(max_wait_time))
-            normalized_request_time = min(1, float(request_time) / float(max_run_time))
+            normalized_wait_time = min(1, float(wait_time) / float(MAX_WAIT_TIME))
+            normalized_request_time = min(1, float(request_time) / float(MAX_RUN_TIME))
 
             procs_left = self.cluster.free_node - request_node
             if procs_left < 0:
@@ -222,43 +274,6 @@ class HpcEnv(gym.Env):
     def is_job_queue_empty(self):
         return all(v.job_id == 0 for v in self.job_queue)
 
-    def random_start(self):
-        for i in range(max_queue_size):
-            self.job_queue[i] = Job(empty_job_str)
-
-        self.start = np.random.randint(0, self.loads.size() - max_queue_size*2)
-        self.current_point = self.start
-        #DOUBT
-        self.size = np.random.randint(max_queue_size, max_queue_size * 2)
-
-        self.current_timestamp = self.loads[self.start].submit_time
-        self.start_timestamp = self.current_timestamp
-
-        """Generate Workloads: look back to fill the cluster"""
-        for i in range(max_queue_size):
-            index = self.start - 1 - i
-            job = self.loads[index]
-            if self.cluster.can_allocated(job):
-                self.running_jobs.append(job)
-                job.scheduled_time = self.current_timestamp
-                allocated_machines = self.cluster.allocate(job.job_id, job.request_number_of_processors)
-                job.allocated_machines = allocated_machines
-            else:
-                self.workload_size = (i + 1)
-                self.workload_start = index
-                break
-
-        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
-
-        """We need to calculate the worst case for this scheduling batch"""
-        longest_delay = 0
-        starter = self.running_jobs[-1].scheduled_time + self.running_jobs[-1].run_time
-        for i in range(self.start, self.start + self.size):
-            starter += self.loads[i].run_time
-            longest_delay += (starter - self.loads[i].submit_time)
-        self.longest_run_time = starter
-        self.longest_average_delay = float(longest_delay) / float(self.size)
-        # print "longest run time: ", self.longest_run_time, " longest average delay: ", self.longest_average_delay
 
     # there are two places we need to consider scheduling: 1) new job submitted; 2) running job finishes
     def forward(self):
@@ -335,7 +350,7 @@ class HpcEnv(gym.Env):
         scheduled_job.allocated_machines = allocated_machines
         self.running_jobs.append(scheduled_job)
 
-        self.job_queue[action] = Job(empty_job_str)  # change it to an empty job
+        self.job_queue[action] = Job()  # change it to an empty job
         s_ = self.build_queue_vector()               # build the new job vector
 
         reward = float(0.0)
