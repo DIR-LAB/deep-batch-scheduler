@@ -2,12 +2,13 @@ import numpy as np
 import math
 import gym
 import sys
+import os
 from gym.utils import seeding
 
-from job import Job
-from job import Workloads
-from cluster import Cluster
-from cluster import Machine
+from gym.envs.scheduler.job import Job
+from gym.envs.scheduler.job import Workloads
+from gym.envs.scheduler.cluster import Cluster
+from gym.envs.scheduler.cluster import Machine
 
 
 max_queue_size = 50
@@ -30,8 +31,8 @@ np.random.seed(1)
 class HpcEnv(gym.Env):
     def __init__(self, workload_file = ''):
         # workload_file = "./data/RICC-2010-2.swf"
-        
-        print ("loading workloads from dataset")
+        print ("current working dir: ", os.getcwd())
+        print ("loading workloads from dataset:", workload_file)
         super(HpcEnv, self).__init__()
         self.workload_file = workload_file
         self.load = Workloads(workload_file)
