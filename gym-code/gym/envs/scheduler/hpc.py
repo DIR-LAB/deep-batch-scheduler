@@ -313,4 +313,5 @@ def demo_scheduler(env):
 
 
 if __name__ == '__main__':
-    demo_scheduler(HpcEnv(workload_file = '/Users/ddai/Documents/tensorflow-study/deep-batch-scheduler/gym-code/data/RICC-2010-2.swf'))
+    print (os.getcwd())
+    demo_scheduler(HpcEnv(workload_file = './gym-code/data/RICC-2010-2.swf'))
