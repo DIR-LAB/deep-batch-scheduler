@@ -1,4 +1,5 @@
 import re
+import math
 
 
 class Job:
@@ -35,8 +36,9 @@ class Job:
         self.average_cpu_time_used = float(s_array[5])
         self.used_memory = int(s_array[6])
         self.request_number_of_processors = int(s_array[7])
+        
         self.request_number_of_nodes = -1
-
+        
         # if we use the job's request time field
         self.request_time = int(s_array[8])
         # if we use the run time as the most accurate request time
@@ -82,7 +84,7 @@ class Job:
     def __str__(self):
         return "J["+str(self.job_id)+"] "
 
-    def feature(self):
+    def __feature__(self):
         return [self.submit_time, self.request_number_of_processors, self.request_time,
                 self.user_id, self.group_id, self.executable_number, self.queue_number]
 
@@ -104,7 +106,7 @@ class Workloads:
                 j = Job(line)
                 if j.run_time > self.max_exec_time:
                     self.max_exec_time = j.run_time
-                    
+
                 self.all_jobs.append(j)
                 
                 if j.request_number_of_processors > self.max:
