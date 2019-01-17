@@ -2,7 +2,6 @@ import numpy as np
 import math
 import sys
 import os
-from six import StringIO, b
 
 import gym
 from gym.utils import seeding
@@ -76,27 +75,6 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         self.reset()
-
-    def render(self, mode='human'):
-        outfile = StringIO() if mode == 'ansi' else sys.stdout
-        total_nodes = self.cluster.all_nodes
-        ncol = int(math.sqrt(total_nodes))
-        row, col = total_nodes // ncol, total_nodes % ncol
-        ''' 
-        # This code snippet is from frozonLake-v0. 
-        # We need to use the similar tech to viz our environment
-        row, col = self.s // self.ncol, self.s % self.ncol
-        desc = self.desc.tolist()
-        desc = [[c.decode('utf-8') for c in line] for line in desc]
-        desc[row][col] = utils.colorize(desc[row][col], "red", highlight=True)
-        if self.lastaction is not None:
-            outfile.write("  ({})\n".format(["Left","Down","Right","Up"][self.lastaction]))
-        else:
-            outfile.write("\n")
-        outfile.write("\n".join(''.join(line) for line in desc)+"\n")
-        '''
-        if mode != 'human':
-            return outfile
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -174,13 +152,6 @@ class HpcEnv(gym.Env):
         return vector
 
 
-    def _is_all_jobs_scheduled(self):
-        for i in range(self.start, self.next_arriving_job_idx):
-            if self.loads[i].scheduled_time == 0:
-                return False
-        return True
-
-
     def _is_job_queue_empty(self):
         return all(v.job_id == 0 for v in self.job_queue)
 
@@ -244,6 +215,7 @@ class HpcEnv(gym.Env):
             2: self.smallest_job_first,
             3: self.shortest_job_first
         }
+
         # action is one of the defined scheduler. 
         # action should be a scalar, calculated based on Maximam Function on the NN outputs
         self.priority_function = SCHEDULER_ALGS.get(action, self.fcfs_priority)
@@ -265,6 +237,7 @@ class HpcEnv(gym.Env):
                 
         # move to next time step
         if not self.running_jobs: # there are no running jobs
+            print ("no running jobs, 1")
             next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
             next_resource_release_machines = []
         else:
@@ -279,6 +252,7 @@ class HpcEnv(gym.Env):
                     if self.job_queue[i].job_id == 0:
                         self.job_queue[i] = self.loads[self.next_arriving_job_idx]
                         self.next_arriving_job_idx += 1
+                        self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
                         inserted = True
                         print ("One Step. ", "Add one job into the job queue")
                 if inserted == False:  # job queue is full
@@ -286,6 +260,7 @@ class HpcEnv(gym.Env):
             else:
                 if not self.running_jobs:
                     # break because this should means we have nothing to put in queue and no one is running. Probably Finished
+                    print ("no running jobs,_ 2")
                     break
                 self.current_timestamp = next_resource_release_time
                 self.cluster.release(next_resource_release_machines)
@@ -297,16 +272,18 @@ class HpcEnv(gym.Env):
         # There are different ways to calculate it. We use the HotNet paper
         # minimizing the average slowdown of all the jobs waiting for service. 
         reward = 0.0
-        for i in range(self.start, self.next_arriving_job_idx):
+        for i in range(self.start, self.last_job_in_batch + 1):
             if self.loads[i].scheduled_time != 0:
                 slow_down = self.loads[i].scheduled_time - self.loads[i].submit_time
                 reward += (0 - 1.0 / (float) (slow_down))
 
         job_queue_vec = self._build_queue_vector()
         
-        done = False
-        if self._is_all_jobs_scheduled():
-            done = True
+        done = True
+        for i in range(self.start, self.last_job_in_batch + 1):
+            if self.loads[i].scheduled_time == 0:  # have at least one job in the batch who has not been scheduled
+                done = False
+                break
 
         print ("One Step. ", "Move to the next step: ", self.current_timestamp)
 
