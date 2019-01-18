@@ -8,7 +8,6 @@ from gym.utils import seeding
 from gym.envs.scheduler.job import Job
 from gym.envs.scheduler.job import Workloads
 from gym.envs.scheduler.cluster import Cluster
-from gym.envs.scheduler.cluster import Machine
 
 # HPC Batch Scheduler Simulation.
 # 
@@ -74,8 +73,6 @@ class HpcEnv(gym.Env):
 
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
-        self.reset()
-
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
@@ -113,14 +110,17 @@ class HpcEnv(gym.Env):
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
                 # assume job was randomly generated
-                job_tmp.scheduled_time = (self.current_timestamp - self.np_random.randint(runtime_of_job))
+                job_tmp.scheduled_time = (self.current_timestamp - runtime_of_job)
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
+                print ("Environment Reset. ", "Add job: ", job_tmp, ", Current Free Node: ", self.cluster.free_node,
+                       " scheduled time: ", job_tmp.scheduled_time)
             else:
                 break
 
         job_queue_vec = self._build_queue_vector()
 
-        print ("Environment Reset. ", "start index: ", self.start, " number of jobs: ", self.num_job_in_batch, " current time: ", self.current_timestamp)
+        print ("Environment Reset. ", "start index: ", self.start, " number of jobs: ", self.num_job_in_batch,
+               " current time: ", self.current_timestamp)
         return np.append(job_queue_vec, self.cluster.free_node)
 
 
@@ -191,6 +191,12 @@ class HpcEnv(gym.Env):
         self.priority_weight_qos = qos
         self.tres_weight_cpu = tres_cpu
 
+    def _is_job_queue_full(self):
+        for job in self.job_queue:
+            if job.job_id == 0:
+                return False
+        return True
+
     def step(self, action):
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
@@ -207,7 +213,6 @@ class HpcEnv(gym.Env):
             done (boolean): whether the episode has ended, in which case further step() calls will return undefined results
             info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
         """
-        print ("One Step. ", "Start at the step: ", self.current_timestamp)
         # Action: scheduling algorithms
         SCHEDULER_ALGS = {
             0: self.slurm_priority,
@@ -223,21 +228,24 @@ class HpcEnv(gym.Env):
 
         # try to schedule all jobs in the queue
         for i in range(0, MAX_QUEUE_SIZE):
-            if self.job_queue[i].scheduled_time == 0 or self.job_queue[i].job_id == 0:
+            if self.job_queue[i].job_id == 0:
                 continue
             if self.cluster.can_allocated(self.job_queue[i]):
-                print ("One Step. ", "Schedule job: ", self.job_queue[i])
                 self.job_queue[i].scheduled_time = self.current_timestamp
                 self.job_queue[i].allocated_machines = self.cluster.allocate(self.job_queue[i].job_id, self.job_queue[i].request_number_of_processors)
                 self.running_jobs.append(self.job_queue[i])
                 self.schedule_logs.append(self.job_queue[i])
+                print("One Step. ", "Schedule job: ", self.job_queue[i], ", Current Free Nodes:",
+                      self.cluster.free_node)
                 self.job_queue[i] = Job()       # remove the job from job queue
             else:
+                print ("No resource to schdule the job")
                 break
-                
+
+        ts_before_move_forward = self.current_timestamp
+
         # move to next time step
         if not self.running_jobs: # there are no running jobs
-            print ("no running jobs, 1")
             next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
             next_resource_release_machines = []
         else:
@@ -246,26 +254,29 @@ class HpcEnv(gym.Env):
             next_resource_release_machines = self.running_jobs[0].allocated_machines
         
         while True:
-            if self.next_arriving_job_idx <= self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time < next_resource_release_time:
-                inserted = False
+            if self.next_arriving_job_idx <= self.last_job_in_batch \
+                    and self.loads[self.next_arriving_job_idx].submit_time < next_resource_release_time \
+                    and not self._is_job_queue_full():
+
                 for i in range(0, MAX_QUEUE_SIZE):
                     if self.job_queue[i].job_id == 0:
                         self.job_queue[i] = self.loads[self.next_arriving_job_idx]
                         self.next_arriving_job_idx += 1
-                        self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
-                        inserted = True
-                        print ("One Step. ", "Add one job into the job queue")
-                if inserted == False:  # job queue is full
-                    break
+                        # current timestamp may be larger than next_arriving_job's submit time because job queue was
+                        # full and we move forward to release resources.
+                        self.current_timestamp = max(self.current_timestamp,
+                                                     self.loads[self.next_arriving_job_idx].submit_time)
+                        print ("One Step. ", "Add Job ", self.job_queue[i], " to the Queue")
+                        break
             else:
                 if not self.running_jobs:
-                    # break because this should means we have nothing to put in queue and no one is running. Probably Finished
-                    print ("no running jobs,_ 2")
+                    print ("No running jobs, 2")
                     break
                 self.current_timestamp = next_resource_release_time
                 self.cluster.release(next_resource_release_machines)
-                self.running_jobs.pop(0) # remove the first running job.
-                print ("One Step. ", "Release some resources")
+                removed_job = self.running_jobs.pop(0) # remove the first running job.
+                print ("One Step. ", "Release Resources of job ", removed_job, " Current Free Nodes:",
+                       self.cluster.free_node)
                 break
         
         # calculate reward
@@ -274,20 +285,22 @@ class HpcEnv(gym.Env):
         reward = 0.0
         for i in range(self.start, self.last_job_in_batch + 1):
             if self.loads[i].scheduled_time != 0:
-                slow_down = self.loads[i].scheduled_time - self.loads[i].submit_time
+                slow_down = 1.0 + self.loads[i].scheduled_time - self.loads[i].submit_time  # in case it would be 0
                 reward += (0 - 1.0 / (float) (slow_down))
 
         job_queue_vec = self._build_queue_vector()
         
         done = True
         for i in range(self.start, self.last_job_in_batch + 1):
-            if self.loads[i].scheduled_time == 0:  # have at least one job in the batch who has not been scheduled
+            if self.loads[i].scheduled_time == 0:  # have at least one job in the batch who has not beenscheduled
                 done = False
                 break
 
-        print ("One Step. ", "Move to the next step: ", self.current_timestamp)
-
+        print ("One Step. ", "Move Forward ", (self.current_timestamp - ts_before_move_forward))
         return [np.append(job_queue_vec, self.cluster.free_node), reward, done, None]
+
+
+
 
 def heuristic(env, s):
     return 1 # always fcfs.
@@ -314,4 +327,4 @@ def demo_scheduler(env):
 
 if __name__ == '__main__':
     print (os.getcwd())
-    demo_scheduler(HpcEnv(workload_file = './gym-code/data/RICC-2010-2.swf'))
+    demo_scheduler(HpcEnv(workload_file = '../../../data/RICC-2010-2.swf'))
