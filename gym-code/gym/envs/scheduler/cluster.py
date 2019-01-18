@@ -13,9 +13,9 @@ class Machine:
             self.running_job_id = job_id
             self.is_free = False
             self.job_history.append(job_id)
-            return job_id
+            return True
         else:
-            return -1
+            return False
 
     def release(self):
         if self.is_free:
@@ -77,7 +77,7 @@ class Cluster:
         for m in self.all_nodes:
             if allocated == request_node:
                 return allocated_nodes
-            if m.taken_by_job(job_id) != -1:
+            if m.taken_by_job(job_id):
                 allocated += 1
                 self.used_node += 1
                 self.free_node -= 1

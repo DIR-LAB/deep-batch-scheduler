@@ -1,5 +1,0 @@
-gym_scheduler.egg-info/PKG-INFO
-gym_scheduler.egg-info/SOURCES.txt
-gym_scheduler.egg-info/dependency_links.txt
-gym_scheduler.egg-info/requires.txt
-gym_scheduler.egg-info/top_level.txt
