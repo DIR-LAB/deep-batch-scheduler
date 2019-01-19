@@ -10,7 +10,7 @@ Description: UNKNOWN
 Platform: UNKNOWN
 Provides-Extra: all
 Provides-Extra: mujoco
-Provides-Extra: classic_control
 Provides-Extra: box2d
 Provides-Extra: robotics
+Provides-Extra: classic_control
 Provides-Extra: atari
