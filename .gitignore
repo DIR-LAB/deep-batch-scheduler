@@ -2,9 +2,8 @@
 *.pyc
 *.DS_Store
 .idea/*
-
 *.*~
-__pycache__/
+__pycache__/*
 *.pkl
 **/*.egg-info
 .python-version

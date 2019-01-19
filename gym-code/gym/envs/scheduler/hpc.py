@@ -4,6 +4,7 @@ import sys
 import os
 
 import gym
+from gym import spaces
 from gym.utils import seeding
 from gym.envs.scheduler.job import Job
 from gym.envs.scheduler.job import Workloads
@@ -23,6 +24,7 @@ NUM_JOB_SCHEDULERS = 4
 # user_id, group_id, executable_number, queue_number
 JOB_FEATURES = 3
 MAX_JOBS_EACH_BATCH = 300
+DEBUG = False
 
 class HpcEnv(gym.Env):
 
@@ -37,8 +39,9 @@ class HpcEnv(gym.Env):
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
 
-        self.action_space = NUM_JOB_SCHEDULERS
-        self.observation_space = JOB_FEATURES * MAX_QUEUE_SIZE + 1
+        self.action_space = spaces.Discrete(NUM_JOB_SCHEDULERS)
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(JOB_FEATURES * MAX_QUEUE_SIZE + 1,),
+                                            dtype=np.float32)
         self.np_random = self.np_random, seed = seeding.np_random(1)
 
         self.job_queue = []
@@ -53,9 +56,6 @@ class HpcEnv(gym.Env):
         self.last_job_in_batch = 0
         self.num_job_in_batch = 0
         self.next_arriving_job_idx = 0
-        
-        self.n_actions = MAX_QUEUE_SIZE
-        self.n_features = MAX_QUEUE_SIZE * JOB_FEATURES
     
         # slurm
         self.priority_max_age = 0.0
@@ -66,10 +66,6 @@ class HpcEnv(gym.Env):
         self.priority_weight_partition = 0.0
         self.priority_weight_qos = 0.0
         self.tres_weight_cpu = 0.0
-        
-        self.backfilling = True
-        self.backfilling_first_fit = True
-        self.backfilling_time = 0
 
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
@@ -87,16 +83,34 @@ class HpcEnv(gym.Env):
         1. randomly choose a batch or a sample of jobs to learn
         2. randomly generate a bunch of jobs that already been scheduled and running to consume random resources.
         """
-        print ("Start Reset")
         self.cluster.reset()
-        
-        self.start = self.np_random.randint(self.loads.size())  # randomly choose a start point in current workload
-        job_remainder = self.loads.size() - self.start # how many jobs are remainded in the workload
-        self.num_job_in_batch = self.np_random.randint(min(job_remainder, MAX_JOBS_EACH_BATCH)) # how many jobs in this batch
-        self.last_job_in_batch = self.start + self.num_job_in_batch  # the id of the last job in this batch.
-        self.current_timestamp = self.loads[self.start].submit_time  # start scheduling from the first job.
-        self.job_queue[0] = self.loads[self.start] # just put the first job into the queue
-        self.next_arriving_job_idx = self.start + 1 # next arriving job would be the second job in the batch
+
+        self.job_queue = []
+        for i in range(0, MAX_QUEUE_SIZE):
+            self.job_queue.append(Job())
+        self.running_jobs = []
+        self.current_timestamp = 0
+        self.start = 0
+        self.next_arriving_job_idx = 0
+        self.schedule_logs = []
+        self.last_job_in_batch = 0
+        self.num_job_in_batch = 0
+        self.next_arriving_job_idx = 0
+        self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
+
+        # randomly choose a start point in current workload
+        self.start = self.np_random.randint(self.loads.size())
+        # how many jobs are remainded in the workload
+        job_remainder = self.loads.size() - self.start
+        # how many jobs in this batch
+        self.num_job_in_batch = self.np_random.randint(min(job_remainder, MAX_JOBS_EACH_BATCH))
+        # the id of the last job in this batch.
+        self.last_job_in_batch = self.start + self.num_job_in_batch
+        # start scheduling from the first job.
+        self.current_timestamp = self.loads[self.start].submit_time
+        self.job_queue[0] = self.loads[self.start]
+        # next arriving job would be the second job in the batch
+        self.next_arriving_job_idx = self.start + 1
 
         # Generate some running jobs to randomly fill the cluster.
         running_job_size = self.np_random.randint(MAX_JOBS_EACH_BATCH)  # size of running jobs.
@@ -110,18 +124,17 @@ class HpcEnv(gym.Env):
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
                 # assume job was randomly generated
-                job_tmp.scheduled_time = (self.current_timestamp - runtime_of_job)
+                job_tmp.scheduled_time = (self.current_timestamp - self.np_random.randint(runtime_of_job))
+                if DEBUG:
+                    print ("In reset, allocate for job, ", job_tmp, " with free nodes: ", self.cluster.free_node)
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
-                print ("Environment Reset. ", "Add job: ", job_tmp, ", Current Free Node: ", self.cluster.free_node,
-                       " scheduled time: ", job_tmp.scheduled_time)
             else:
                 break
 
         job_queue_vec = self._build_queue_vector()
 
-        print ("Environment Reset. ", "start index: ", self.start, " number of jobs: ", self.num_job_in_batch,
-               " current time: ", self.current_timestamp)
-        return np.append(job_queue_vec, self.cluster.free_node)
+        node_utilization = float(self.cluster.used_node)/float(self.cluster.total_node)
+        return np.append(job_queue_vec, node_utilization)
 
 
     def _build_queue_vector(self):
@@ -232,14 +245,13 @@ class HpcEnv(gym.Env):
                 continue
             if self.cluster.can_allocated(self.job_queue[i]):
                 self.job_queue[i].scheduled_time = self.current_timestamp
+                if DEBUG:
+                    print("In step, schedule a job, ", self.job_queue[i], " with free nodes: ", self.cluster.free_node)
                 self.job_queue[i].allocated_machines = self.cluster.allocate(self.job_queue[i].job_id, self.job_queue[i].request_number_of_processors)
                 self.running_jobs.append(self.job_queue[i])
                 self.schedule_logs.append(self.job_queue[i])
-                print("One Step. ", "Schedule job: ", self.job_queue[i], ", Current Free Nodes:",
-                      self.cluster.free_node)
                 self.job_queue[i] = Job()       # remove the job from job queue
             else:
-                print ("No resource to schdule the job")
                 break
 
         ts_before_move_forward = self.current_timestamp
@@ -261,22 +273,20 @@ class HpcEnv(gym.Env):
                 for i in range(0, MAX_QUEUE_SIZE):
                     if self.job_queue[i].job_id == 0:
                         self.job_queue[i] = self.loads[self.next_arriving_job_idx]
-                        self.next_arriving_job_idx += 1
                         # current timestamp may be larger than next_arriving_job's submit time because job queue was
                         # full and we move forward to release resources.
                         self.current_timestamp = max(self.current_timestamp,
                                                      self.loads[self.next_arriving_job_idx].submit_time)
-                        print ("One Step. ", "Add Job ", self.job_queue[i], " to the Queue")
+                        self.next_arriving_job_idx += 1
                         break
             else:
                 if not self.running_jobs:
-                    print ("No running jobs, 2")
                     break
                 self.current_timestamp = next_resource_release_time
                 self.cluster.release(next_resource_release_machines)
                 removed_job = self.running_jobs.pop(0) # remove the first running job.
-                print ("One Step. ", "Release Resources of job ", removed_job, " Current Free Nodes:",
-                       self.cluster.free_node)
+                if DEBUG:
+                    print("In step, release a job, ", removed_job, " generated free nodes: ", self.cluster.free_node)
                 break
         
         # calculate reward
@@ -296,14 +306,16 @@ class HpcEnv(gym.Env):
                 done = False
                 break
 
-        print ("One Step. ", "Move Forward ", (self.current_timestamp - ts_before_move_forward))
-        return [np.append(job_queue_vec, self.cluster.free_node), reward, done, None]
+        node_utilization = float(self.cluster.used_node) / float(self.cluster.total_node)
+        return [np.append(job_queue_vec, node_utilization), reward, done, None]
 
 
 
 
 def heuristic(env, s):
-    return 1 # always fcfs.
+    action = np.random.randint(0, 4)
+    print ("take action, ", action)
+    return action
 
 def demo_scheduler(env):
     env.seed()
@@ -315,7 +327,7 @@ def demo_scheduler(env):
         s, r, done, _ = env.step(a)
         total_reward += r
 
-        if steps % 20 == 0 or done:
+        if steps >= 0 or done:
             print("observations:", " ".join(["{:+0.2f}".format(x) for x in s]))
             print("step {} total_reward {:+0.2f}".format(steps, total_reward))
 
