@@ -17,7 +17,7 @@ from gym.envs.scheduler.cluster import Cluster
 MAX_QUEUE_SIZE = 50
 MAX_WAIT_TIME = 24 * 60 * 60 # assume maximal wait time is 24 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
-NUM_JOB_SCHEDULERS = 4
+NUM_JOB_SCHEDULERS = 6
 
 # each job has features
 # submit_time, request_number_of_processors, request_time,
@@ -25,6 +25,26 @@ NUM_JOB_SCHEDULERS = 4
 JOB_FEATURES = 3
 MAX_JOBS_EACH_BATCH = 300
 DEBUG = False
+
+
+class ResourceRelease:
+    def __init__(self, t, job_id, machines, expected_t):
+        self.release_time = t
+        self.job_id = job_id
+        self.release_resources = machines
+        self.expected_release_time = expected_t
+
+    def __eq__(self, other):
+        return self.job_id == other.job_id
+
+
+def resource_release_priority(rr):
+    return [rr.release_time, rr.job_id]
+
+
+def expected_resource_release_priority(rr):
+    return [rr.expected_release_time, rr.job_id]
+
 
 class HpcEnv(gym.Env):
 
@@ -42,6 +62,7 @@ class HpcEnv(gym.Env):
         self.action_space = spaces.Discrete(NUM_JOB_SCHEDULERS)
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(JOB_FEATURES * MAX_QUEUE_SIZE + 1,),
                                             dtype=np.float32)
+
         self.np_random = self.np_random, seed = seeding.np_random(1)
 
         self.job_queue = []
@@ -66,14 +87,12 @@ class HpcEnv(gym.Env):
         self.priority_weight_partition = 0.0
         self.priority_weight_qos = 0.0
         self.tres_weight_cpu = 0.0
-
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    
     def reset(self):
         """Resets the state of the environment and returns an initial observation.
 
@@ -84,7 +103,6 @@ class HpcEnv(gym.Env):
         2. randomly generate a bunch of jobs that already been scheduled and running to consume random resources.
         """
         self.cluster.reset()
-
         self.job_queue = []
         for i in range(0, MAX_QUEUE_SIZE):
             self.job_queue.append(Job())
@@ -136,7 +154,6 @@ class HpcEnv(gym.Env):
         node_utilization = float(self.cluster.used_node)/float(self.cluster.total_node)
         return np.append(job_queue_vec, node_utilization)
 
-
     def _build_queue_vector(self):
         vector = np.array([])
 
@@ -164,10 +181,8 @@ class HpcEnv(gym.Env):
 
         return vector
 
-
     def _is_job_queue_empty(self):
         return all(v.job_id == 0 for v in self.job_queue)
-
 
     def slurm_priority(self, job):
         age_factor = float(job.slurm_age) / float(self.priority_max_age)
@@ -191,8 +206,14 @@ class HpcEnv(gym.Env):
     def smallest_job_first(self, job):
         return job.number_of_allocated_processors
 
+    def largest_job_first(self, job):
+        return sys.maxsize - job.number_of_allocated_processors
+
     def shortest_job_first(self, job):
         return job.request_time
+
+    def longest_job_first(self, job):
+        return sys.maxsize - job.request_time
 
     def _configure_slurm(self, age, fair_share, job_size, partition, qos, tres_cpu, max_age, favor_small):
         self.priority_weight_age = age
@@ -231,7 +252,9 @@ class HpcEnv(gym.Env):
             0: self.slurm_priority,
             1: self.fcfs_priority,
             2: self.smallest_job_first,
-            3: self.shortest_job_first
+            3: self.shortest_job_first,
+            4: self.largest_job_first,
+            5: self.longest_job_first
         }
 
         # action is one of the defined scheduler. 
@@ -241,6 +264,8 @@ class HpcEnv(gym.Env):
 
         # try to schedule all jobs in the queue
         for i in range(0, MAX_QUEUE_SIZE):
+            check_for_schedule = self.job_queue[i]
+
             if self.job_queue[i].job_id == 0:
                 continue
             if self.cluster.can_allocated(self.job_queue[i]):
@@ -252,6 +277,51 @@ class HpcEnv(gym.Env):
                 self.schedule_logs.append(self.job_queue[i])
                 self.job_queue[i] = Job()       # remove the job from job queue
             else:
+                # if there is no enough resource for current job. Try to backfill the jobs behind it
+                # calculate the expected starting time of job[i].
+                _needed_processors = self.job_queue[i].request_number_of_processors
+                _expected_start_time = self.current_timestamp
+                _extra_released_processors = 0
+
+                self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+                _released_resources = self.cluster.free_node * self.cluster.num_procs_per_node
+                for k in range(0, len(self.running_jobs)):
+                    _job = self.running_jobs[k]
+                    _released_resources += _job.request_number_of_processors
+                    released_time = _job.scheduled_time + _job.run_time
+                    if _released_resources >= _needed_processors:
+                        _expected_start_time = released_time
+                        _extra_released_processors = _released_resources - _needed_processors
+                        break
+
+                # find do we have later jobs that do not affect the _expected_start_time
+                for j in range(i + 1, MAX_QUEUE_SIZE):
+                    _schedule_it = False
+                    _job = self.job_queue[j]
+                    if _job.job_id == 0:
+                        continue
+
+                    if not self.cluster.can_allocated(_job):
+                        # if this job can not be allocated, skip to next job in the queue
+                        continue
+
+                    if (_job.run_time + self.current_timestamp) <= _expected_start_time:
+                        # if i can finish earlier than the expected start time of job[i], schedule it.
+                        _schedule_it = True
+                    else:
+                        if _job.request_number_of_processors < _extra_released_processors:
+                            # if my allocation is small enough, not affecting anything, schedule it
+                            _schedule_it = True
+                            # but, we have to update the _extra_released_processors if we took it
+                            _extra_released_processors -= _job.request_number_of_processors
+
+                    if _schedule_it:
+                        print ("take backfilling: ", _job, " for job, ", check_for_schedule)
+                        _job.scheduled_time = self.current_timestamp
+                        _job.allocated_machines = self.cluster.allocate(_job.job_id, _job.request_number_of_processors)
+                        self.running_jobs.append(_job)
+                        self.schedule_logs.append(_job)
+                        self.job_queue[i] = Job()
                 break
 
         ts_before_move_forward = self.current_timestamp
@@ -310,10 +380,8 @@ class HpcEnv(gym.Env):
         return [np.append(job_queue_vec, node_utilization), reward, done, None]
 
 
-
-
 def heuristic(env, s):
-    action = np.random.randint(0, 4)
+    action = np.random.randint(0, 6)
     print ("take action, ", action)
     return action
 
