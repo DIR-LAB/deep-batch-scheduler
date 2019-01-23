@@ -134,7 +134,9 @@ class HpcEnv(gym.Env):
         # next arriving job would be the second job in the batch
         self.next_arriving_job_idx = self.start + 1
 
-        print ("Reset Env: ", self.start, ", ", self.num_job_in_batch, ", ", self.last_job_in_batch)
+        if DEBUG:
+            print ("Reset Env: ", self.loads[self.start], ", ", self.num_job_in_batch, ", ", self.loads[
+                self.last_job_in_batch])
 
         # Generate some running jobs to randomly fill the cluster.
         running_job_size = self.np_random.randint(1, MAX_JOBS_EACH_BATCH)  # size of running jobs.
@@ -286,6 +288,7 @@ class HpcEnv(gym.Env):
                 self.schedule_logs.append(self.job_queue[i])
                 scheduled_jobs_in_step.append(self.job_queue[i])
                 self.job_queue[i] = Job()       # remove the job from job queue
+                break # @important: each step, we just scheduled one job!!!
             else:
                 # if there is no enough resource for current job, try to backfill the jobs behind it
                 # calculate the expected starting time of job[i].
@@ -326,12 +329,13 @@ class HpcEnv(gym.Env):
                             _extra_released_processors -= _job.request_number_of_processors
 
                     if _schedule_it:
-                        print ("take backfilling: ", _job, " for job, ", check_for_schedule)
+                        if DEBUG:
+                            print ("take backfilling: ", _job, " for job, ", check_for_schedule)
                         _job.scheduled_time = self.current_timestamp
                         _job.allocated_machines = self.cluster.allocate(_job.job_id, _job.request_number_of_processors)
                         self.running_jobs.append(_job)
                         self.schedule_logs.append(_job)
-                        scheduled_jobs_in_step.append.append(_job)
+                        scheduled_jobs_in_step.append(_job)
                         self.job_queue[i] = Job()
                 break
 
@@ -374,6 +378,7 @@ class HpcEnv(gym.Env):
         # There are different ways to calculate it. We use the HotNet paper
         # minimizing the average slowdown of all the jobs waiting for service.
         reward = 0.0
+        # reward += -1.0 # we want to schedule all the jobs as soon as possible.
         for _job in scheduled_jobs_in_step:
             assert _job.scheduled_time != 0
             _slow_down = 1.0 + _job.scheduled_time - _job.submit_time
@@ -386,9 +391,6 @@ class HpcEnv(gym.Env):
             if self.loads[i].scheduled_time == 0:  # have at least one job in the batch who has not been scheduled
                 done = False
                 break
-        if done:
-            for _job in self.schedule_logs:
-                print ("scheduled: ", _job)
 
         node_utilization = float(self.cluster.used_node) / float(self.cluster.total_node)
         return [np.append(job_queue_vec, node_utilization), reward, done, None]

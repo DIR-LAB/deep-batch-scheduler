@@ -8,9 +8,9 @@ Author-email: gym@openai.com
 License: UNKNOWN
 Description: UNKNOWN
 Platform: UNKNOWN
-Provides-Extra: all
-Provides-Extra: mujoco
-Provides-Extra: box2d
-Provides-Extra: robotics
-Provides-Extra: classic_control
 Provides-Extra: atari
+Provides-Extra: mujoco
+Provides-Extra: classic_control
+Provides-Extra: robotics
+Provides-Extra: all
+Provides-Extra: box2d
