@@ -17,14 +17,14 @@ from gym.envs.scheduler.cluster import Cluster
 MAX_QUEUE_SIZE = 50
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
-NUM_JOB_SCHEDULERS = 6
+NUM_JOB_SCHEDULERS = 5
 
 # each job has features
 # submit_time, request_number_of_processors, request_time,
 # user_id, group_id, executable_number, queue_number
 JOB_FEATURES = 3
 MAX_JOBS_EACH_BATCH = 1000
-DEBUG = False
+DEBUG = True
 
 
 class ResourceRelease:
@@ -103,12 +103,17 @@ class HpcEnv(gym.Env):
         Two things are done in "reset":
         1. randomly choose a batch or a sample of jobs to learn
         2. randomly generate a bunch of jobs that already been scheduled and running to consume random resources.
+
+        @update: need to reconsider "random". if we randomly select the samples, the agent could be confused as the
+        rewards are no long consistent and not comparable.
         """
         self.cluster.reset()
+        self.loads.reset()
 
         self.job_queue = []
         for i in range(0, MAX_QUEUE_SIZE):
             self.job_queue.append(Job())
+
         self.priority_function = None
         self.running_jobs = []
         self.current_timestamp = 0
@@ -121,11 +126,13 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         # randomly choose a start point in current workload
-        self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
+        #self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
+        self.start = 0
         # how many jobs are remainded in the workload
         job_remainder = self.loads.size() - self.start
         # how many jobs in this batch
-        self.num_job_in_batch = self.np_random.randint(1, min(job_remainder, MAX_JOBS_EACH_BATCH))
+        # self.num_job_in_batch = self.np_random.randint(1, min(job_remainder, MAX_JOBS_EACH_BATCH))
+        self.num_job_in_batch = MAX_JOBS_EACH_BATCH
         # the id of the last job in this batch.
         self.last_job_in_batch = self.start + self.num_job_in_batch
         # start scheduling from the first job.
@@ -139,6 +146,8 @@ class HpcEnv(gym.Env):
                 self.last_job_in_batch])
 
         # Generate some running jobs to randomly fill the cluster.
+        # @update: no pre-scheduling loads on the cluster.
+        '''
         running_job_size = self.np_random.randint(1, MAX_JOBS_EACH_BATCH)  # size of running jobs.
         for i in range(running_job_size):
             req_num_of_processors = self.np_random.randint(1, self.loads.max_procs) # random number of requests
@@ -156,9 +165,8 @@ class HpcEnv(gym.Env):
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
             else:
                 break
-
+        '''
         job_queue_vec = self._build_queue_vector()
-
         node_utilization = float(self.cluster.used_node)/float(self.cluster.total_node)
         return np.append(job_queue_vec, node_utilization)
 
@@ -259,12 +267,11 @@ class HpcEnv(gym.Env):
         """
         # Action: scheduling algorithms
         scheduler_algs = {
-            0: self.slurm_priority,
-            1: self.fcfs_priority,
-            2: self.smallest_job_first,
-            3: self.shortest_job_first,
-            4: self.largest_job_first,
-            5: self.longest_job_first
+            0: self.fcfs_priority,
+            1: self.smallest_job_first,
+            2: self.shortest_job_first,
+            3: self.largest_job_first,
+            4: self.longest_job_first
         }
 
         # action is one of the defined scheduler. 
@@ -273,12 +280,15 @@ class HpcEnv(gym.Env):
         self.job_queue.sort(key=lambda j: (self.priority_function(j)))
 
         scheduled_jobs_in_step = []
+        scheduled_normal = False
+        scheduled_backfill = False
 
         # try to schedule all jobs in the queue
         for i in range(0, MAX_QUEUE_SIZE):
             check_for_schedule = self.job_queue[i]
 
             assert self.job_queue[i].job_id >= 0
+
             if self.job_queue[i].job_id == 0:
                 continue
             if self.cluster.can_allocated(self.job_queue[i]):
@@ -289,6 +299,7 @@ class HpcEnv(gym.Env):
                 self.running_jobs.append(self.job_queue[i])
                 self.schedule_logs.append(self.job_queue[i])
                 scheduled_jobs_in_step.append(self.job_queue[i])
+                scheduled_normal = True
                 self.job_queue[i] = Job()       # remove the job from job queue
                 break # @important: each step, we just scheduled one job!!!
             else:
@@ -338,69 +349,81 @@ class HpcEnv(gym.Env):
                         self.running_jobs.append(_job)
                         self.schedule_logs.append(_job)
                         scheduled_jobs_in_step.append(_job)
+                        scheduled_backfill = True
                         self.job_queue[i] = Job()
                 break
 
         ts_before_move_forward = self.current_timestamp
 
-        # move to next time step
-        if not self.running_jobs: # there are no running jobs
-            next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
-            next_resource_release_machines = []
-        else:
-            self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
-            next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
-            next_resource_release_machines = self.running_jobs[0].allocated_machines
-        
-        while True:
-            if self.next_arriving_job_idx < self.last_job_in_batch \
-                    and self.loads[self.next_arriving_job_idx].submit_time < next_resource_release_time \
-                    and not self._is_job_queue_full():
-
-                for i in range(0, MAX_QUEUE_SIZE):
-                    if self.job_queue[i].job_id == 0:
-                        self.job_queue[i] = self.loads[self.next_arriving_job_idx]
-                        # current timestamp may be larger than next_arriving_job's submit time because job queue was
-                        # full and we move forward to release resources.
-                        self.current_timestamp = max(self.current_timestamp,
-                                                     self.loads[self.next_arriving_job_idx].submit_time)
-                        self.next_arriving_job_idx += 1
-                        break
+        if not scheduled_normal:
+            # when the job queue is empty and there is no running job. we just add more jobs into the queue.
+            if not self.running_jobs:  # there are no running jobs
+                next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
+                next_resource_release_machines = []
             else:
-                if not self.running_jobs:
+                self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+                next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+                next_resource_release_machines = self.running_jobs[0].allocated_machines
+
+            while True:
+                if self.next_arriving_job_idx < self.last_job_in_batch \
+                        and self.loads[self.next_arriving_job_idx].submit_time < next_resource_release_time \
+                        and not self._is_job_queue_full():
+
+                    for i in range(0, MAX_QUEUE_SIZE):
+                        if self.job_queue[i].job_id == 0:
+                            self.job_queue[i] = self.loads[self.next_arriving_job_idx]
+                            # current timestamp may be larger than next_arriving_job's submit time because job queue was
+                            # full and we move forward to release resources.
+                            self.current_timestamp = max(self.current_timestamp,
+                                                         self.loads[self.next_arriving_job_idx].submit_time)
+                            self.next_arriving_job_idx += 1
+                            break
+                else:
+                    if not self.running_jobs:
+                        break
+                    self.current_timestamp = next_resource_release_time
+                    self.cluster.release(next_resource_release_machines)
+                    removed_job = self.running_jobs.pop(0) # remove the first running job.
+                    if DEBUG:
+                        print("In step, release a job, ", removed_job, " generated free nodes: ", self.cluster.free_node)
                     break
-                self.current_timestamp = next_resource_release_time
-                self.cluster.release(next_resource_release_machines)
-                removed_job = self.running_jobs.pop(0) # remove the first running job.
-                if DEBUG:
-                    print("In step, release a job, ", removed_job, " generated free nodes: ", self.cluster.free_node)
-                break
         
         # calculate reward
         # There are different ways to calculate it. We use the HotNet paper
         # minimizing the average slowdown of all the jobs waiting for service.
         reward = 0.0
-        # reward += -1.0 # we want to schedule all the jobs as soon as possible.
         for _job in scheduled_jobs_in_step:
             assert _job.scheduled_time != -1
-            _slow_down = 1.0 + _job.scheduled_time - _job.submit_time
-            reward += (0 - 1.0 / float(_slow_down))
+            reward += (0 - (_job.scheduled_time - _job.submit_time) / float(self.num_job_in_batch))
 
-        job_queue_vec = self._build_queue_vector()
-        
         done = True
         for i in range(self.start, self.last_job_in_batch):
             if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
                 done = False
                 break
 
+        '''
+        # @update: we do not give reward until we finish scheduling everything.
+        if done:
+            _slow_down = 0.0
+            for i in range(self.start, self.last_job_in_batch):
+                _job = self.loads[i]
+                assert _job.scheduled_time != -1
+                _slow_down += _job.scheduled_time - _job.submit_time
+            _average_slow_down = _slow_down / float(self.num_job_in_batch)
+            reward = 0 - _average_slow_down
+            #print ("Get Reward ", reward, " In This Epoch")
+        '''
+
+        job_queue_vec = self._build_queue_vector()
         node_utilization = float(self.cluster.used_node) / float(self.cluster.total_node)
         return [np.append(job_queue_vec, node_utilization), reward, done, None]
 
 
 def heuristic(env, s):
     action = np.random.randint(0, 6)
-    print ("take action, ", action)
+    #print ("take action, ", action)
     return action
 
 
@@ -414,8 +437,8 @@ def demo_scheduler(env):
         s, r, done, _ = env.step(a)
         total_reward += r
 
-        if steps >= 0 or done:
-            print("observations:", " ".join(["{:+0.2f}".format(x) for x in s]))
+        if steps > 0 or done:
+            #print("observations:", " ".join(["{:+0.2f}".format(x) for x in s]))
             print("step {} total_reward {:+0.4f}".format(steps, total_reward))
 
         steps += 1

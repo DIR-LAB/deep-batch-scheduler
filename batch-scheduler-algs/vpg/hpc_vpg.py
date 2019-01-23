@@ -194,7 +194,7 @@ Vanilla Policy Gradient
 
 def hpc_vpg(env_fn, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
             steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
-            vf_lr=1e-3, train_v_iters=80, lam=0.97, max_ep_len=1000,
+            vf_lr=1e-3, train_v_iters=80, lam=0.97, max_ep_len=10000,
             logger_kwargs=dict(), save_freq=10):
     """
 
@@ -389,7 +389,7 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=4000)
+    parser.add_argument('--steps', type=int, default=5000)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--exp_name', type=str, default='hpc-vpg')
     args = parser.parse_args()
