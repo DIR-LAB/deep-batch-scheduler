@@ -348,9 +348,9 @@ if __name__ == '__main__':
     parser.add_argument('--env', type=str, default='Scheduler-v0')
     parser.add_argument('--hid', type=int, default=300)
     parser.add_argument('--l', type=int, default=1)
-    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--exp_name', type=str, default='td3')
     args = parser.parse_args()
 
