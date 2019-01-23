@@ -400,6 +400,7 @@ class HpcEnv(gym.Env):
         done = True
         for i in range(self.start, self.last_job_in_batch):
             if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
+
                 done = False
                 break
 
