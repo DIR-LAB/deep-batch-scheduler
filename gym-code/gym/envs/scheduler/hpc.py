@@ -150,7 +150,7 @@ class HpcEnv(gym.Env):
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
                 # assume job was randomly generated
-                job_tmp.scheduled_time = (self.current_timestamp - self.np_random.randint(runtime_of_job))
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - self.np_random.randint(runtime_of_job)))
                 if DEBUG:
                     print ("In reset, allocate for job, ", job_tmp, " with free nodes: ", self.cluster.free_node)
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
@@ -382,7 +382,7 @@ class HpcEnv(gym.Env):
         reward = 0.0
         # reward += -1.0 # we want to schedule all the jobs as soon as possible.
         for _job in scheduled_jobs_in_step:
-            assert _job.scheduled_time != 0
+            assert _job.scheduled_time != -1
             _slow_down = 1.0 + _job.scheduled_time - _job.submit_time
             reward += (0 - 1.0 / float(_slow_down))
 
@@ -390,7 +390,7 @@ class HpcEnv(gym.Env):
         
         done = True
         for i in range(self.start, self.last_job_in_batch):
-            if self.loads[i].scheduled_time == 0:  # have at least one job in the batch who has not been scheduled
+            if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
                 done = False
                 break
 
