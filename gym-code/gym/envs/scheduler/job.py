@@ -66,7 +66,7 @@ class Job:
 
         self.random_id = self.submit_time
 
-        self.scheduled_time = 0
+        self.scheduled_time = -1
 
         self.allocated_machines = None
 
