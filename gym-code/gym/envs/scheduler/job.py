@@ -117,6 +117,10 @@ class Workloads:
     def size(self):
         return len(self.all_jobs)
 
+    def reset(self):
+        for job in self.all_jobs:
+            job.scheduled_time = -1
+
     def __getitem__(self, item):
         return self.all_jobs[item]
 
