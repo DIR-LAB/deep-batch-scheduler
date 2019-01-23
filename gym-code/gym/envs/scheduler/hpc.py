@@ -15,7 +15,7 @@ from gym.envs.scheduler.cluster import Cluster
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
 MAX_QUEUE_SIZE = 50
-MAX_WAIT_TIME = 24 * 60 * 60 # assume maximal wait time is 24 hours.
+MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 NUM_JOB_SCHEDULERS = 6
 
@@ -23,7 +23,7 @@ NUM_JOB_SCHEDULERS = 6
 # submit_time, request_number_of_processors, request_time,
 # user_id, group_id, executable_number, queue_number
 JOB_FEATURES = 3
-MAX_JOBS_EACH_BATCH = 300
+MAX_JOBS_EACH_BATCH = 1000
 DEBUG = False
 
 
@@ -121,7 +121,7 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         # randomly choose a start point in current workload
-        self.start = self.np_random.randint(self.loads.size())
+        self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
         # how many jobs are remainded in the workload
         job_remainder = self.loads.size() - self.start
         # how many jobs in this batch
@@ -173,6 +173,7 @@ class HpcEnv(gym.Env):
             submit_time = job.submit_time
             request_processors = job.request_number_of_processors
             request_time = job.request_time
+            run_time = job.run_time
             # not used for now
             #user_id = job.user_id
             #group_id = job.group_id
@@ -180,11 +181,12 @@ class HpcEnv(gym.Env):
             #queue_number = job.queue_number
 
             wait_time = self.current_timestamp - submit_time
-            normalized_wait_time = min(1, float(wait_time) / float(MAX_WAIT_TIME))
-            normalized_request_time = min(1, float(request_time) / float(MAX_RUN_TIME))
-            normalized_request_nodes = min(1, float(request_processors) / float(self.loads.max_procs))
+            normalized_wait_time = min(1.0, float(wait_time) / float(MAX_WAIT_TIME))
+            normalized_request_time = min(1.0, float(request_time) / float(MAX_RUN_TIME))
+            normalized_run_time = min(1.0, float(run_time) / float(MAX_RUN_TIME))
+            normalized_request_nodes = min(1.0, float(request_processors) / float(self.loads.max_procs))
 
-            job_vector = np.array([normalized_wait_time, normalized_request_nodes, normalized_request_time])
+            job_vector = np.array([normalized_wait_time, normalized_run_time, normalized_request_nodes])
             vector = np.append(vector, job_vector)
 
         return vector
