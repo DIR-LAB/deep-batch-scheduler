@@ -24,7 +24,7 @@ NUM_JOB_SCHEDULERS = 5
 # user_id, group_id, executable_number, queue_number
 JOB_FEATURES = 3
 MAX_JOBS_EACH_BATCH = 1000
-DEBUG = True
+DEBUG = False
 
 
 class ResourceRelease:
@@ -126,13 +126,13 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         # randomly choose a start point in current workload
-        #self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
-        self.start = 0
+        self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
+        # self.start = 85741
         # how many jobs are remainded in the workload
         job_remainder = self.loads.size() - self.start
         # how many jobs in this batch
-        # self.num_job_in_batch = self.np_random.randint(1, min(job_remainder, MAX_JOBS_EACH_BATCH))
-        self.num_job_in_batch = MAX_JOBS_EACH_BATCH
+        self.num_job_in_batch = self.np_random.randint(1, min(job_remainder, MAX_JOBS_EACH_BATCH))
+        # self.num_job_in_batch = MAX_JOBS_EACH_BATCH
         # the id of the last job in this batch.
         self.last_job_in_batch = self.start + self.num_job_in_batch
         # start scheduling from the first job.
@@ -142,11 +142,10 @@ class HpcEnv(gym.Env):
         self.next_arriving_job_idx = self.start + 1
 
         if DEBUG:
-            print ("Reset Env: ", self.loads[self.start], ", ", self.num_job_in_batch, ", ", self.loads[
+            print("Reset Env: ", self.loads[self.start], ", ", self.num_job_in_batch, ", ", self.loads[
                 self.last_job_in_batch])
 
         # Generate some running jobs to randomly fill the cluster.
-        # @update: no pre-scheduling loads on the cluster.
         '''
         running_job_size = self.np_random.randint(1, MAX_JOBS_EACH_BATCH)  # size of running jobs.
         for i in range(running_job_size):
@@ -249,6 +248,12 @@ class HpcEnv(gym.Env):
                 return False
         return True
 
+    def _is_job_queue_empty(self):
+        for job in self.job_queue:
+            if job.job_id > 0:
+                return False
+        return True
+
     def step(self, action):
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
@@ -274,6 +279,9 @@ class HpcEnv(gym.Env):
             4: self.longest_job_first
         }
 
+        if DEBUG:
+            print("new step")
+
         # action is one of the defined scheduler. 
         # action should be a scalar, calculated based on Maximam Function on the NN outputs
         self.priority_function = scheduler_algs.get(action, self.fcfs_priority)
@@ -281,7 +289,10 @@ class HpcEnv(gym.Env):
 
         scheduled_jobs_in_step = []
         scheduled_normal = False
-        scheduled_backfill = False
+
+        allocated_machine_number = 0
+        released_machine_number = 0
+        running_queue_machine_number = 0
 
         # try to schedule all jobs in the queue
         for i in range(0, MAX_QUEUE_SIZE):
@@ -291,13 +302,16 @@ class HpcEnv(gym.Env):
 
             if self.job_queue[i].job_id == 0:
                 continue
+
             if self.cluster.can_allocated(self.job_queue[i]):
+                assert self.job_queue[i].scheduled_time == -1  # this job should never be scheduled before.
                 self.job_queue[i].scheduled_time = self.current_timestamp
                 if DEBUG:
                     print("In step, schedule a job, ", self.job_queue[i], " with free nodes: ", self.cluster.free_node)
                 self.job_queue[i].allocated_machines = self.cluster.allocate(self.job_queue[i].job_id, self.job_queue[i].request_number_of_processors)
                 self.running_jobs.append(self.job_queue[i])
                 self.schedule_logs.append(self.job_queue[i])
+                allocated_machine_number += len(self.job_queue[i].allocated_machines)
                 scheduled_jobs_in_step.append(self.job_queue[i])
                 scheduled_normal = True
                 self.job_queue[i] = Job()       # remove the job from job queue
@@ -306,18 +320,27 @@ class HpcEnv(gym.Env):
                 # if there is no enough resource for current job, try to backfill the jobs behind it
                 # calculate the expected starting time of job[i].
                 _needed_processors = self.job_queue[i].request_number_of_processors
+                if DEBUG:
+                    print("try to back fill job, ", self.job_queue[i])
                 _expected_start_time = self.current_timestamp
                 _extra_released_processors = 0
 
                 self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
                 _released_resources = self.cluster.free_node * self.cluster.num_procs_per_node
+                if DEBUG:
+                    print("total resources: ", self.cluster.total_node * self.cluster.num_procs_per_node)
+                    print("_released_resources, ", _released_resources)
                 for _job in self.running_jobs:
-                    _released_resources += _job.request_number_of_processors
+                    if DEBUG:
+                        print ("running job: ", _job)
+                    _released_resources += len(_job.allocated_machines) * self.cluster.num_procs_per_node
                     released_time = _job.scheduled_time + _job.run_time
                     if _released_resources >= _needed_processors:
                         _expected_start_time = released_time
                         _extra_released_processors = _released_resources - _needed_processors
                         break
+                if DEBUG:
+                    print("_released_resources2, ", _released_resources)
                 assert _released_resources >= _needed_processors
 
                 # find do we have later jobs that do not affect the _expected_start_time
@@ -326,6 +349,8 @@ class HpcEnv(gym.Env):
                     _job = self.job_queue[j]
                     if _job.job_id == 0:
                         continue
+
+                    assert _job.scheduled_time == -1  # this job should never be scheduled before.
 
                     if not self.cluster.can_allocated(_job):
                         # if this job can not be allocated, skip to next job in the queue
@@ -343,14 +368,14 @@ class HpcEnv(gym.Env):
 
                     if _schedule_it:
                         if DEBUG:
-                            print ("take backfilling: ", _job, " for job, ", check_for_schedule)
+                            print("take backfilling: ", _job, " for job, ", check_for_schedule)
                         _job.scheduled_time = self.current_timestamp
                         _job.allocated_machines = self.cluster.allocate(_job.job_id, _job.request_number_of_processors)
                         self.running_jobs.append(_job)
                         self.schedule_logs.append(_job)
                         scheduled_jobs_in_step.append(_job)
-                        scheduled_backfill = True
-                        self.job_queue[i] = Job()
+                        allocated_machine_number += len(_job.allocated_machines)
+                        self.job_queue[j] = Job()
                 break
 
         ts_before_move_forward = self.current_timestamp
@@ -367,7 +392,7 @@ class HpcEnv(gym.Env):
 
             while True:
                 if self.next_arriving_job_idx < self.last_job_in_batch \
-                        and self.loads[self.next_arriving_job_idx].submit_time < next_resource_release_time \
+                        and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time \
                         and not self._is_job_queue_full():
 
                     for i in range(0, MAX_QUEUE_SIZE):
@@ -384,14 +409,29 @@ class HpcEnv(gym.Env):
                         break
                     self.current_timestamp = next_resource_release_time
                     self.cluster.release(next_resource_release_machines)
+                    released_machine_number += len(next_resource_release_machines)
                     removed_job = self.running_jobs.pop(0) # remove the first running job.
                     if DEBUG:
                         print("In step, release a job, ", removed_job, " generated free nodes: ", self.cluster.free_node)
                     break
-        
+
+        if DEBUG:
+            for _job in self.running_jobs:
+                running_queue_machine_number += len(_job.allocated_machines) * self.cluster.num_procs_per_node
+            total = allocated_machine_number * self.cluster.num_procs_per_node + \
+                    released_machine_number * self.cluster.num_procs_per_node + \
+                    running_queue_machine_number + \
+                    self.cluster.free_node * self.cluster.num_procs_per_node
+
+            print("We take ", allocated_machine_number * self.cluster.num_procs_per_node,
+                  " release ", released_machine_number * self.cluster.num_procs_per_node,
+                  " running queue takes ", running_queue_machine_number,
+                  " free processors ", self.cluster.free_node * self.cluster.num_procs_per_node,
+                  " total ", total)
+
         # calculate reward
-        # There are different ways to calculate it. We use the HotNet paper
-        # minimizing the average slowdown of all the jobs waiting for service.
+        # This is difficult. The reward has to be something independent from the samples.
+        # Think about the value network in alphaGo.
         reward = 0.0
         for _job in scheduled_jobs_in_step:
             assert _job.scheduled_time != -1
@@ -400,10 +440,8 @@ class HpcEnv(gym.Env):
         done = True
         for i in range(self.start, self.last_job_in_batch):
             if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
-
                 done = False
                 break
-
         '''
         # @update: we do not give reward until we finish scheduling everything.
         if done:

@@ -6,7 +6,7 @@ from gym.envs.registration import registry, register, make, spec
 register(
     id='Scheduler-v0',
     entry_point='gym.envs.scheduler:HpcEnv',
-    kwargs={'workload_file' : '/home/daidong/Documents/gitrepos/deep-batch-scheduler/gym-code/data/RICC-2010-2.swf'}
+    kwargs={'workload_file' : '/Users/ddai/Documents/tensorflow-study/deep-batch-scheduler/gym-code/data/RICC-2010-2.swf'}
 )
 
 # Algorithmic
