@@ -126,8 +126,8 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         # randomly choose a start point in current workload
-        self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
-        # self.start = 85741
+        # self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
+        self.start = 85741
         # how many jobs are remainded in the workload
         job_remainder = self.loads.size() - self.start
         # how many jobs in this batch
@@ -290,8 +290,6 @@ class HpcEnv(gym.Env):
         scheduled_jobs_in_step = []
         scheduled_normal = False
 
-        allocated_machine_number = 0
-        released_machine_number = 0
         running_queue_machine_number = 0
 
         # try to schedule all jobs in the queue
@@ -311,7 +309,6 @@ class HpcEnv(gym.Env):
                 self.job_queue[i].allocated_machines = self.cluster.allocate(self.job_queue[i].job_id, self.job_queue[i].request_number_of_processors)
                 self.running_jobs.append(self.job_queue[i])
                 self.schedule_logs.append(self.job_queue[i])
-                allocated_machine_number += len(self.job_queue[i].allocated_machines)
                 scheduled_jobs_in_step.append(self.job_queue[i])
                 scheduled_normal = True
                 self.job_queue[i] = Job()       # remove the job from job queue
@@ -374,7 +371,6 @@ class HpcEnv(gym.Env):
                         self.running_jobs.append(_job)
                         self.schedule_logs.append(_job)
                         scheduled_jobs_in_step.append(_job)
-                        allocated_machine_number += len(_job.allocated_machines)
                         self.job_queue[j] = Job()
                 break
 
@@ -409,7 +405,6 @@ class HpcEnv(gym.Env):
                         break
                     self.current_timestamp = next_resource_release_time
                     self.cluster.release(next_resource_release_machines)
-                    released_machine_number += len(next_resource_release_machines)
                     removed_job = self.running_jobs.pop(0) # remove the first running job.
                     if DEBUG:
                         print("In step, release a job, ", removed_job, " generated free nodes: ", self.cluster.free_node)
@@ -418,31 +413,31 @@ class HpcEnv(gym.Env):
         if DEBUG:
             for _job in self.running_jobs:
                 running_queue_machine_number += len(_job.allocated_machines) * self.cluster.num_procs_per_node
-            total = allocated_machine_number * self.cluster.num_procs_per_node + \
-                    released_machine_number * self.cluster.num_procs_per_node + \
-                    running_queue_machine_number + \
+            total = running_queue_machine_number + \
                     self.cluster.free_node * self.cluster.num_procs_per_node
 
-            print("We take ", allocated_machine_number * self.cluster.num_procs_per_node,
-                  " release ", released_machine_number * self.cluster.num_procs_per_node,
-                  " running queue takes ", running_queue_machine_number,
-                  " free processors ", self.cluster.free_node * self.cluster.num_procs_per_node,
+            print("Running jobs take ", running_queue_machine_number,
+                  " Remaining free processors ", self.cluster.free_node * self.cluster.num_procs_per_node,
                   " total ", total)
 
         # calculate reward
         # This is difficult. The reward has to be something independent from the samples.
         # Think about the value network in alphaGo.
         reward = 0.0
+        '''
         for _job in scheduled_jobs_in_step:
             assert _job.scheduled_time != -1
             reward += (0 - (_job.scheduled_time - _job.submit_time) / float(self.num_job_in_batch))
-
+        '''
         done = True
         for i in range(self.start, self.last_job_in_batch):
             if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
                 done = False
                 break
-        '''
+
+        job_queue_vec = self._build_queue_vector()
+        node_utilization = float(self.cluster.used_node) / float(self.cluster.total_node)
+
         # @update: we do not give reward until we finish scheduling everything.
         if done:
             _slow_down = 0.0
@@ -452,12 +447,21 @@ class HpcEnv(gym.Env):
                 _slow_down += _job.scheduled_time - _job.submit_time
             _average_slow_down = _slow_down / float(self.num_job_in_batch)
             reward = 0 - _average_slow_down
-            #print ("Get Reward ", reward, " In This Epoch")
-        '''
 
-        job_queue_vec = self._build_queue_vector()
-        node_utilization = float(self.cluster.used_node) / float(self.cluster.total_node)
         return [np.append(job_queue_vec, node_utilization), reward, done, None]
+
+    def _get_metrics_using_algorithm(self, algorithm_id, start, end):
+        self.reset()
+        scheduler_algs = {
+            0: self.fcfs_priority,
+            1: self.smallest_job_first,
+            2: self.shortest_job_first,
+            3: self.largest_job_first,
+            4: self.longest_job_first
+        }
+        self.priority_function = scheduler_algs.get(algorithm_id)
+
+
 
 
 def heuristic(env, s):
