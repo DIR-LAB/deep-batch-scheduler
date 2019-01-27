@@ -10,16 +10,20 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 EPS = 1e-8
 
+
 def combined_shape(length, shape=None):
     if shape is None:
         return (length,)
     return (length, shape) if np.isscalar(shape) else (length, *shape)
 
+
 def placeholder(dim=None):
     return tf.placeholder(dtype=tf.float32, shape=combined_shape(None,dim))
 
+
 def placeholders(*args):
     return [placeholder(dim) for dim in args]
+
 
 def placeholder_from_space(space):
     if isinstance(space, Box):
@@ -27,6 +31,7 @@ def placeholder_from_space(space):
     elif isinstance(space, Discrete):
         return tf.placeholder(dtype=tf.int32, shape=(None,))
     raise NotImplementedError
+
 
 def placeholders_from_spaces(*args):
     return [placeholder_from_space(space) for space in args]
@@ -36,16 +41,58 @@ def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
         x = tf.layers.dense(x, units=h, activation=activation)
     return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
 
+def basic_cnn(x_ph):
+    x = tf.reshape(x_ph, shape=[-1, 8, 8, 3])
+    conv1 = tf.layers.conv2d(
+            inputs=x,
+            filters=32,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool1 = tf.layers.max_pooling2d(
+            inputs=conv1,
+            pool_size=[2, 2],
+            strides=2
+    )
+    conv2 = tf.layers.conv2d(
+            inputs=pool1,
+            filters=64,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool2 = tf.layers.max_pooling2d(
+            inputs=conv2,
+            pool_size=[2, 2],
+            strides=2
+    )
+    flat = tf.reshape(pool2, [-1, 2 * 2 * 64])
+    dense = tf.layers.dense(
+            inputs=flat,
+            units=1024,
+            activation=tf.nn.relu
+    )
+    dropout = tf.layers.dropout(
+            inputs=dense,
+            rate=0.5,
+    )
+    return tf.layers.dense(
+            inputs=dropout,
+            units=64
+    )
+
+
 def get_vars(scope=''):
     return [x for x in tf.trainable_variables() if scope in x.name]
+
 
 def count_vars(scope=''):
     v = get_vars(scope)
     return sum([np.prod(var.shape.as_list()) for var in v])
 
-def gaussian_likelihood(x, mu, log_std):
-    pre_sum = -0.5 * (((x-mu)/(tf.exp(log_std)+EPS))**2 + 2*log_std + np.log(2*np.pi))
-    return tf.reduce_sum(pre_sum, axis=1)
 
 def discount_cumsum(x, discount):
     """
@@ -65,10 +112,6 @@ def discount_cumsum(x, discount):
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
-"""
-Policies
-"""
-
 def mlp_categorical_policy(x, a, hidden_sizes, activation, output_activation, action_space):
     act_dim = action_space.n
     logits = mlp(x, list(hidden_sizes)+[act_dim], activation, None)
@@ -79,28 +122,39 @@ def mlp_categorical_policy(x, a, hidden_sizes, activation, output_activation, ac
     return pi, logp, logp_pi
 
 
-def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation, action_space):
-    act_dim = a.shape.as_list()[-1]
-    mu = mlp(x, list(hidden_sizes)+[act_dim], activation, output_activation)
-    log_std = tf.get_variable(name='log_std', initializer=-0.5*np.ones(act_dim, dtype=np.float32))
-    std = tf.exp(log_std)
-    pi = mu + tf.random_normal(tf.shape(mu)) * std
-    logp = gaussian_likelihood(a, mu, log_std)
-    logp_pi = gaussian_likelihood(pi, mu, log_std)
-    return pi, logp, logp_pi
-
-
-"""
-Actor-Critics
-"""
 def mlp_actor_critic(x, a, hidden_sizes=(64,64), activation=tf.tanh,
                      output_activation=None, policy=None, action_space=None):
 
     # default policy builder depends on action space
-    if policy is None and isinstance(action_space, Box):
-        policy = mlp_gaussian_policy
-    elif policy is None and isinstance(action_space, Discrete):
-        policy = mlp_categorical_policy
+    policy = mlp_categorical_policy
+
+    with tf.variable_scope('pi'):
+        pi, logp, logp_pi = policy(x, a, hidden_sizes, activation, output_activation, action_space)
+    with tf.variable_scope('v'):
+        v = tf.squeeze(mlp(x, list(hidden_sizes)+[1], activation, None), axis=1)
+    return pi, logp, logp_pi, v
+
+
+"""
+Policies
+"""
+def cnn_categorical_policy(x, a, hidden_sizes, activation, output_activation, action_space):
+    act_dim = action_space.n
+    logits = basic_cnn(x)
+    logp_all = tf.nn.log_softmax(logits)
+    pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
+    logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
+    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
+    return pi, logp, logp_pi
+
+"""
+Actor-Critics
+"""
+def cnn_actor_critic(x, a, hidden_sizes=(64,64), activation=tf.tanh,
+                     output_activation=None, policy=None, action_space=None):
+
+    # default policy builder depends on action space
+    policy = cnn_categorical_policy
 
     with tf.variable_scope('pi'):
         pi, logp, logp_pi = policy(x, a, hidden_sizes, activation, output_activation, action_space)
@@ -183,6 +237,22 @@ class VPGBuffer:
                 self.ret_buf, self.logp_buf]
 
 
+def action_is_legal(obs, action):
+    q = np.reshape(obs, [8, 8, 3])
+    if all(q[int(action / 8), int(action % 8)] == 0) or action == 63:
+        return False
+    return True
+
+def obs_legal_size(obs):
+    q = np.reshape(obs, [8, 8, 3])
+    legal = 0
+    for i in range(0, 8):
+        for j in range(0, 8):
+            if not all(q[i,j] == 0):
+                legal += 1
+    legal -= 1
+    return legal
+
 """
 
 Vanilla Policy Gradient
@@ -190,8 +260,6 @@ Vanilla Policy Gradient
 (with GAE-Lambda for advantage estimation)
 
 """
-
-
 def hpc_vpg(env_fn, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
             steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
             vf_lr=1e-3, train_v_iters=80, lam=0.97, max_ep_len=10000,
@@ -334,7 +402,14 @@ def hpc_vpg(env_fn, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
-            a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
+            # This can be improved by not calculating get_action_ops everytime.
+            tries = 0
+            while True:
+                tries += 1
+                a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
+                if action_is_legal(o, a):
+                    break
+            print ("get an legal action:", a, "legal space is", obs_legal_size(o), "try: ", tries, "times")
 
             # save and log
             buf.store(o, a, r, v_t, logp_t)
@@ -389,8 +464,8 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=5000000)
-    parser.add_argument('--epochs', type=int, default=1000)
+    parser.add_argument('--steps', type=int, default=5000)
+    parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--exp_name', type=str, default='hpc-vpg')
     args = parser.parse_args()
 
