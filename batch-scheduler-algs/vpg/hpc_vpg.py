@@ -243,6 +243,7 @@ def action_is_legal(obs, action):
         return False
     return True
 
+
 def obs_legal_size(obs):
     q = np.reshape(obs, [8, 8, 3])
     legal = 0
