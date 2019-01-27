@@ -839,17 +839,16 @@ class HpcEnv(gym.Env):
                 self.Metrics_Average_Response_Time, utilization], self.schedule_logs
 
 
-def legal(s, a):
-    job = np.reshape(s[:-1], (-1, 3))[a]
-    for w in job:
-        if w != 0:
-            return True
-    return False
+def legal(obs, action):
+    q = np.reshape(obs, [8, 8, 3])
+    if all(q[int(action / 8), int(action % 8)] == 0) or action == 63:
+        return False
+    return True
 
 def heuristic(env, s):
     # [print(_, end=", ") for _ in s[:-1]]
     # print("")
-    actions = np.argsort(np.random.dirichlet(np.ones(50), size=1)).ravel()
+    actions = np.argsort(np.random.dirichlet(np.ones(64), size=1)).ravel()
     legal_actions = [a for a in actions if legal(s, a)]
     assert legal_actions
     return legal_actions[0]
