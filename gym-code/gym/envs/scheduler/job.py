@@ -94,6 +94,11 @@ class Workloads:
     def __init__(self, path):
         self.max = 0
         self.max_exec_time = 0
+        self.max_job_id = 0
+        self.max_group_id = 0
+        self.max_executable_number = 0
+        self.max_job_id = 0
+
         with open(path) as fp:
             for line in fp:
                 if line.startswith(";"):
@@ -107,10 +112,12 @@ class Workloads:
                 if j.run_time > self.max_exec_time:
                     self.max_exec_time = j.run_time
 
+
                 self.all_jobs.append(j)
                 
                 if j.request_number_of_processors > self.max:
                     self.max = j.request_number_of_processors
+
         print ("Max Allocated Processors:", str(self.max), " max node:", self.max_nodes, " max procs:", self.max_procs)
         self.all_jobs.sort(key=lambda job: job.job_id)
 
