@@ -409,7 +409,7 @@ def hpc_vpg(env_fn, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
                 a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
                 if action_is_legal(o, a):
                     break
-            print ("get an legal action:", a, "legal space is", obs_legal_size(o), "try: ", tries, "times")
+            # print ("get an legal action:", a, "legal space is", obs_legal_size(o), "try: ", tries, "times")
 
             # save and log
             buf.store(o, a, r, v_t, logp_t)
