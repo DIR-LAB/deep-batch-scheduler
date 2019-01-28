@@ -413,7 +413,7 @@ class HpcEnv(gym.Env):
             for i in range(0, 5):
                 [total_ts, slow_ts, resp_ts, util_ts], _ = \
                     self.get_metrics_using_algorithm(i, self.start, self.last_job_in_batch)
-                if not DEBUG:
+                if DEBUG:
                     print("algorithm ", i, " total time: ", total_ts, " slow down: ",
                           slow_ts, " response time: ", resp_ts,
                           " utility: ", util_ts)
@@ -426,18 +426,18 @@ class HpcEnv(gym.Env):
                 if util_ts > max_utilization:
                     max_utilization = util_ts
 
-            if execution_time < min_total:
-                reward += 1
-            else:
-                reward -= 1
+            #if execution_time < min_total:
+            #    reward += 1
+            #else:
+            #    reward -= 1
             if slow_down < min_slowdown:
-                reward += 1
+                reward += float(min_slowdown + 1) / float(slow_down + 1) # in case they could be 0
             else:
-                reward -= 1
-            if utilization > max_utilization:
-                reward += 1
-            else:
-                reward -= 1
+                reward -= float(slow_down + 1) / float(min_slowdown + 1)
+            #if utilization > max_utilization:
+            #    reward += 1
+            #else:
+            #    reward -= 1
 
         return [obs, reward, done, None]
 
