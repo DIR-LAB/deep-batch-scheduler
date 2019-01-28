@@ -400,7 +400,7 @@ class HpcEnv(gym.Env):
             utilization = float(self.Metrics_System_Utilization) / float(self.cluster.num_procs_per_node *
                                                                          self.cluster.total_node *
                                                                          self.Metrics_Total_Execution_Time)
-            if DEBUG:
+            if not DEBUG:
                 print("algorithm  *  total time: ", self.Metrics_Total_Execution_Time, " slow down: ",
                       self.Metrics_Average_Slow_Down, " response time: ", self.Metrics_Average_Response_Time,
                       " utility: ", utilization)
@@ -413,7 +413,7 @@ class HpcEnv(gym.Env):
             for i in range(0, 5):
                 [total_ts, slow_ts, resp_ts, util_ts], _ = \
                     self.get_metrics_using_algorithm(i, self.start, self.last_job_in_batch)
-                if DEBUG:
+                if not DEBUG:
                     print("algorithm ", i, " total time: ", total_ts, " slow down: ",
                           slow_ts, " response time: ", resp_ts,
                           " utility: ", util_ts)
