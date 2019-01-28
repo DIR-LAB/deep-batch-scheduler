@@ -123,8 +123,8 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         # randomly choose a start point in current workload
-        # self.start = self.np_random.randint(self.loads.size() - 2 * MAX_JOBS_EACH_BATCH)
-        self.start = 12897
+        self.start = self.np_random.randint(self.loads.size() - 2 * MAX_JOBS_EACH_BATCH)
+        # self.start = 12897
         # how many jobs are remained in the workload
         job_remainder = self.loads.size() - self.start
         # how many jobs in this batch
