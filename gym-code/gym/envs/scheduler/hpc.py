@@ -38,7 +38,7 @@ class HpcEnv(gym.Env):
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
 
-        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE)
+        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE + 1)
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
 
@@ -123,8 +123,8 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         # randomly choose a start point in current workload
-        self.start = self.np_random.randint(self.loads.size() - 2 * MAX_JOBS_EACH_BATCH)
-        # self.start = 12897
+        # self.start = self.np_random.randint(self.loads.size() - 2 * MAX_JOBS_EACH_BATCH)
+        self.start = 12897
         # how many jobs are remained in the workload
         job_remainder = self.loads.size() - self.start
         # how many jobs in this batch
@@ -400,7 +400,7 @@ class HpcEnv(gym.Env):
             utilization = float(self.Metrics_System_Utilization) / float(self.cluster.num_procs_per_node *
                                                                          self.cluster.total_node *
                                                                          self.Metrics_Total_Execution_Time)
-            if not DEBUG:
+            if DEBUG:
                 print("algorithm  *  total time: ", self.Metrics_Total_Execution_Time, " slow down: ",
                       self.Metrics_Average_Slow_Down, " response time: ", self.Metrics_Average_Response_Time,
                       " utility: ", utilization)
@@ -426,15 +426,15 @@ class HpcEnv(gym.Env):
                 if util_ts > max_utilization:
                     max_utilization = util_ts
 
-            if execution_time <= min_total:
+            if execution_time < min_total:
                 reward += 1
             else:
                 reward -= 1
-            if slow_down <= min_slowdown:
+            if slow_down < min_slowdown:
                 reward += 1
             else:
                 reward -= 1
-            if utilization >= max_utilization:
+            if utilization > max_utilization:
                 reward += 1
             else:
                 reward -= 1
