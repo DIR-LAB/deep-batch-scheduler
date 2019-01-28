@@ -22,7 +22,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 # submit_time, request_number_of_processors, request_time,
 # user_id, group_id, executable_number, queue_number
 JOB_FEATURES = 3
-MAX_JOBS_EACH_BATCH = 1000
+MAX_JOBS_EACH_BATCH = 200
 DEBUG = False
 
 class HpcEnv(gym.Env):
@@ -334,7 +334,8 @@ class HpcEnv(gym.Env):
 
         # move time forward
         if DEBUG:
-            print("move time forward, get_this_job_scheduled: ", get_this_job_scheduled,
+            print("schedule job?", job_for_scheduling, "move time forward, get_this_job_scheduled: ",
+                  get_this_job_scheduled,
                   " job queue is empty?: ", self._is_job_queue_empty(),
                   " running jobs?: ", len(self.running_jobs))
 
@@ -399,7 +400,7 @@ class HpcEnv(gym.Env):
             utilization = float(self.Metrics_System_Utilization) / float(self.cluster.num_procs_per_node *
                                                                          self.cluster.total_node *
                                                                          self.Metrics_Total_Execution_Time)
-            if DEBUG:
+            if not DEBUG:
                 print("algorithm  *  total time: ", self.Metrics_Total_Execution_Time, " slow down: ",
                       self.Metrics_Average_Slow_Down, " response time: ", self.Metrics_Average_Response_Time,
                       " utility: ", utilization)
