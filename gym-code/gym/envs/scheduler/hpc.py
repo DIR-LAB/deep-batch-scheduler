@@ -400,7 +400,7 @@ class HpcEnv(gym.Env):
             utilization = float(self.Metrics_System_Utilization) / float(self.cluster.num_procs_per_node *
                                                                          self.cluster.total_node *
                                                                          self.Metrics_Total_Execution_Time)
-            if not DEBUG:
+            if DEBUG:
                 print("algorithm  *  total time: ", self.Metrics_Total_Execution_Time, " slow down: ",
                       self.Metrics_Average_Slow_Down, " response time: ", self.Metrics_Average_Response_Time,
                       " utility: ", utilization)
@@ -426,12 +426,17 @@ class HpcEnv(gym.Env):
                 if util_ts > max_utilization:
                     max_utilization = util_ts
 
+            if not DEBUG:
+                print("SlowDown. RL Agent:", slow_down, "Best of all:", min_slowdown)
+
             #if execution_time < min_total:
             #    reward += 1
             #else:
             #    reward -= 1
             if slow_down < min_slowdown:
                 reward += float(min_slowdown + 1) / float(slow_down + 1) # in case they could be 0
+            elif slow_down == min_slowdown:
+                reward += 0.0
             else:
                 reward -= float(slow_down + 1) / float(min_slowdown + 1)
             #if utilization > max_utilization:
@@ -710,7 +715,7 @@ class HpcEnv(gym.Env):
             self.job_queue.sort(key=lambda j: (self.priority_function(j)))
 
             scheduled_jobs_in_step = []
-            scheduled_normal = False
+            get_this_job_scheduled = False
 
             # try to schedule all jobs in the queue
             for i in range(0, MAX_QUEUE_SIZE):
@@ -727,7 +732,7 @@ class HpcEnv(gym.Env):
                     self.running_jobs.append(self.job_queue[i])
                     self.schedule_logs.append(self.job_queue[i])
                     scheduled_jobs_in_step.append(self.job_queue[i])
-                    scheduled_normal = True
+                    get_this_job_scheduled = True
                     self.Metrics_Total_Execution_Time = max(self.Metrics_Total_Execution_Time,
                                                             self.job_queue[i].scheduled_time + self.job_queue[i].run_time)
                     self.Metrics_Average_Slow_Down += (self.job_queue[i].scheduled_time - self.job_queue[i].submit_time)
@@ -792,7 +797,7 @@ class HpcEnv(gym.Env):
                             self.job_queue[j] = Job()
                     break
 
-            if not scheduled_normal:
+            while not get_this_job_scheduled or self._is_job_queue_empty():
                 # when the job queue is empty and there is no running job. we just add more jobs into the queue.
                 if not self.running_jobs:  # there are no running jobs
                     next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
@@ -802,27 +807,25 @@ class HpcEnv(gym.Env):
                     next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
                     next_resource_release_machines = self.running_jobs[0].allocated_machines
 
-                while True:
-                    if self.next_arriving_job_idx < self.last_job_in_batch \
-                            and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time \
-                            and not self._is_job_queue_full():
+                if self.next_arriving_job_idx < self.last_job_in_batch \
+                        and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time \
+                        and not self._is_job_queue_full():
 
-                        for i in range(0, MAX_QUEUE_SIZE):
-                            if self.job_queue[i].job_id == 0:
-                                self.job_queue[i] = self.loads[self.next_arriving_job_idx]
-                                # current timestamp may be larger than next_arriving_job's submit time because
-                                # job queue was full and we move forward to release resources.
-                                self.current_timestamp = max(self.current_timestamp,
-                                                             self.loads[self.next_arriving_job_idx].submit_time)
-                                self.next_arriving_job_idx += 1
-                                break
-                    else:
-                        if not self.running_jobs:
+                    for i in range(0, MAX_QUEUE_SIZE):
+                        if self.job_queue[i].job_id == 0:
+                            self.job_queue[i] = self.loads[self.next_arriving_job_idx]
+                            # current timestamp may be larger than next_arriving_job's submit time because
+                            # job queue was full and we move forward to release resources.
+                            self.current_timestamp = max(self.current_timestamp,
+                                                         self.loads[self.next_arriving_job_idx].submit_time)
+                            self.next_arriving_job_idx += 1
                             break
-                        self.current_timestamp = next_resource_release_time
-                        self.cluster.release(next_resource_release_machines)
-                        self.running_jobs.pop(0)  # remove the first running job.
+                else:
+                    if not self.running_jobs:
                         break
+                    self.current_timestamp = next_resource_release_time
+                    self.cluster.release(next_resource_release_machines)
+                    self.running_jobs.pop(0)  # remove the first running job.
 
             done = True
             for i in range(self.start, self.last_job_in_batch):
@@ -833,6 +836,7 @@ class HpcEnv(gym.Env):
             # @update: we do not give reward until we finish scheduling everything.
             if done:
                 break
+
         utilization = float(self.Metrics_System_Utilization) / float(self.cluster.num_procs_per_node *
                                                                      self.cluster.total_node *
                                                                      self.Metrics_Total_Execution_Time)
