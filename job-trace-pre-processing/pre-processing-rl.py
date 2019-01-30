@@ -5,7 +5,7 @@ from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
 MAX_QUEUE_SIZE = 63
-MAX_JOBS_EACH_BATCH = 200
+MAX_JOBS_EACH_BATCH = 500
 
 class RLProcessor():
 
@@ -292,5 +292,5 @@ class RLProcessor():
                 self.Metrics_Average_Response_Time, utilization], self.schedule_logs, average_queue_size
 
 if __name__ == '__main__':
-    rlp = RLProcessor(workload_file="../data/RICC-2010-2.swf", output_file="../data/RICC-RL.txt")
+    rlp = RLProcessor(workload_file="../data/RICC-2010-2.swf", output_file="../data/RICC-RL-500.txt")
     rlp.pre_process_job_trace()
