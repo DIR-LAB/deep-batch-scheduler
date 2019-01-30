@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import gym
 import time
+import os
 import scipy.signal
 import hpc
 from gym.spaces import Box, Discrete
@@ -465,7 +466,7 @@ if __name__ == '__main__':
     parser.add_argument('--workload', type=str,
                         default='../../data/RICC-2010-2.swf')
     parser.add_argument('--rlmetrics', type=str,
-                        default='../../data/RICC-RL.txt')
+                        default='../../data/RICC-RL-200.txt')
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=4)
     parser.add_argument('--gamma', type=float, default=1.0)
@@ -482,7 +483,12 @@ if __name__ == '__main__':
 
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    hpc_vpg(args.env, args.workload, args.rlmetrics, actor_critic=cnn_actor_critic,
+    # build absolute path for using in hpc_env.
+    current_dir = os.getcwd()
+    workload_file = os.path.join(current_dir, args.workload)
+    rl_metrics_file = os.path.join(current_dir, args.rlmetrics)
+
+    hpc_vpg(args.env, workload_file, rl_metrics_file, actor_critic=cnn_actor_critic,
             ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
             seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
             logger_kwargs=logger_kwargs)

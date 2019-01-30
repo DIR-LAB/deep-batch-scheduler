@@ -31,6 +31,7 @@ DEBUG = False
 class HpcEnv(gym.Env):
 
     def __init__(self):  # do nothing and return. A workaround for passing parameters to the environment
+        super(HpcEnv, self).__init__()
         self.action_space = spaces.Discrete(MAX_QUEUE_SIZE + 1)
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
@@ -79,19 +80,19 @@ class HpcEnv(gym.Env):
         }
 
         self.pre_processed_job_metrics = {}
+        self.pre_processed_job_list = []
 
         self.loads = None
         self.cluster = None
 
     def my_init(self, workload_file = '', pre_processed_metrics_file = ''):
-        super(HpcEnv, self).__init__()
-
         print ("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
 
         with open(pre_processed_metrics_file, 'r') as f:
             self.pre_processed_job_metrics = json.load(f)
+        self.pre_processed_job_list = list(self.pre_processed_job_metrics)  # get the key list of high quality items
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -135,9 +136,9 @@ class HpcEnv(gym.Env):
         self._configure_slurm(1000, 0, 1000, 0, 0, 0, 60 * 60 * 72, True)
 
         # randomly choose a start point in current workload (has to be high quality sequence)
-        self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
-        while not self.start in self.job_pre_processing:
-            self.start = self.np_random.randint(self.loads.size() - MAX_JOBS_EACH_BATCH)
+        high_quality_sample_size = len(self.pre_processed_job_metrics)
+        self.start = int(self.pre_processed_job_list[self.np_random.randint(0, high_quality_sample_size)])
+        # print ("reset, select item: ", self.start)
         # how many jobs are remained in the workload
         job_remainder = self.loads.size() - self.start
         # how many jobs in this batch
@@ -440,7 +441,7 @@ class HpcEnv(gym.Env):
 
 
             for i in range(0, 5):
-                [total_ts, slow_ts, resp_ts, util_ts] = self.job_pre_processing[self.start][i]
+                [total_ts, slow_ts, resp_ts, util_ts, _] = self.pre_processed_job_metrics[str(self.start)][str(i)]
                 if DEBUG:
                     print("algorithm ", i, " total time: ", total_ts, " slow down: ",
                           slow_ts, " response time: ", resp_ts,
