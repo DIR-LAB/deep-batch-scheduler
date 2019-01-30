@@ -261,5 +261,5 @@ class SLProcessor:
 
 if __name__ == '__main__':
     slp = SLProcessor(workload_file="../data/RICC-2010-2.swf")
-    with open("../data/RICC-SL-200.txt", 'w') as f:
+    with open("../data/RICC-SL-Shortest-JF.txt", 'w') as f:
         slp.run_scheduler_to_generate_log(2, f)
