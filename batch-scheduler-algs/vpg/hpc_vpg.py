@@ -481,7 +481,7 @@ if __name__ == '__main__':
 
     from spinup.utils.run_utils import setup_logger_kwargs
 
-    logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
+    logger_kwargs = setup_logger_kwargs(args.exp_name, seed = args.seed, data_dir='../../data/logs/')
 
     # build absolute path for using in hpc_env.
     current_dir = os.getcwd()
