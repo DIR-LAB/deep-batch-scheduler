@@ -455,7 +455,7 @@ class HpcEnv(gym.Env):
                 if util_ts > max_utilization:
                     max_utilization = util_ts
 
-            if not DEBUG:
+            if DEBUG:
                 print("SlowDown. RL Agent:", slow_down, "Best of all:", min_slowdown)
 
             #if execution_time < min_total:
