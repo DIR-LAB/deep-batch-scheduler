@@ -471,7 +471,7 @@ if __name__ == '__main__':
     parser.add_argument('--l', type=int, default=4)
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--cpu', type=int, default=1)
+    parser.add_argument('--cpu', type=int, default=8)
     parser.add_argument('--steps', type=int, default=8000)
     parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--exp_name', type=str, default='hpc-vpg-cnn-8')
@@ -481,12 +481,13 @@ if __name__ == '__main__':
 
     from spinup.utils.run_utils import setup_logger_kwargs
 
-    logger_kwargs = setup_logger_kwargs(args.exp_name, seed = args.seed, data_dir='../../data/logs/')
-
     # build absolute path for using in hpc_env.
     current_dir = os.getcwd()
     workload_file = os.path.join(current_dir, args.workload)
     rl_metrics_file = os.path.join(current_dir, args.rlmetrics)
+
+    log_data_dir = os.path.join(current_dir, '../../data/logs/')
+    logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
 
     hpc_vpg(args.env, workload_file, rl_metrics_file, actor_critic=cnn_actor_critic,
             ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
