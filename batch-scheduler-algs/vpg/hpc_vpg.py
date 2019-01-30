@@ -3,6 +3,7 @@ import tensorflow as tf
 import gym
 import time
 import scipy.signal
+import hpc
 from gym.spaces import Box, Discrete
 from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
@@ -261,7 +262,7 @@ Vanilla Policy Gradient
 (with GAE-Lambda for advantage estimation)
 
 """
-def hpc_vpg(env_fn, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
+def hpc_vpg(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
             steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
             vf_lr=1e-3, train_v_iters=80, lam=0.97, max_ep_len=10000,
             logger_kwargs=dict(), save_freq=10):
@@ -330,7 +331,9 @@ def hpc_vpg(env_fn, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    env = env_fn()
+    env = gym.make(env_name)
+    env.my_init(workload_file=workload_file, pre_processed_metrics_file=rl_metrics_file)
+
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape
 
@@ -457,14 +460,17 @@ def hpc_vpg(env_fn, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
 if __name__ == '__main__':
     import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='Scheduler-v0')
+    parser.add_argument('--workload', type=str,
+                        default='../../data/RICC-2010-2.swf')
+    parser.add_argument('--rlmetrics', type=str,
+                        default='../../data/RICC-RL.txt')
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=4)
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--cpu', type=int, default=8)
+    parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=8000)
     parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--exp_name', type=str, default='hpc-vpg-cnn-8')
@@ -476,7 +482,7 @@ if __name__ == '__main__':
 
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    hpc_vpg(lambda: gym.make(args.env), actor_critic=cnn_actor_critic,
+    hpc_vpg(args.env, args.workload, args.rlmetrics, actor_critic=cnn_actor_critic,
             ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
             seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
             logger_kwargs=logger_kwargs)
