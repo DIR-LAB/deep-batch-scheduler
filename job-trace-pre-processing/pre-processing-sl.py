@@ -75,7 +75,7 @@ class SLProcessor:
         assert scheduled_job.job_id != 0
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
         vector = np.zeros((sq, sq, JOB_FEATURES), dtype=float)
-        self.job_queue.sort(key=lambda j: j.job_id)
+        # self.job_queue.sort(key=lambda j: j.job_id)
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
@@ -138,6 +138,9 @@ class SLProcessor:
 
         self.priority_function = self.scheduler_algs.get(algorithm_id)
 
+        sample_cnt = 0
+        sample_json = []
+
         while True:
 
             self.job_queue.sort(key=lambda j: (self.priority_function(j)))
@@ -164,9 +167,13 @@ class SLProcessor:
                     get_this_job_scheduled = True
                     # output a training sample
                     ja, new_idx = self.build_observation(self.job_queue[i])
-                    for _item in ja:
-                        f.write(str(_item) + " ")
-                    f.write(str(new_idx) + "\n")
+                    l = np.squeeze(ja, axis=0).tolist()
+                    sample = {}
+                    sample['observe'] = l
+                    sample['label'] = new_idx
+                    sample_json.append(sample)
+                    print(len(sample_json))
+                    sample_cnt += 1
                     self.job_queue[new_idx] = Job()  # remove the job from job queue
                     break
                 else:
@@ -258,6 +265,8 @@ class SLProcessor:
             # @update: we do not give reward until we finish scheduling everything.
             if done:
                 break
+
+        json.dump(sample_json, f)
 
 if __name__ == '__main__':
     slp = SLProcessor(workload_file="../data/RICC-2010-2.swf")
