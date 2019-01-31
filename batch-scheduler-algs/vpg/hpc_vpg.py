@@ -11,6 +11,7 @@ from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 
 EPS = 1e-8
+SAMPLE_ACTIONS = 128
 
 
 def combined_shape(length, shape=None):
@@ -144,9 +145,9 @@ def cnn_categorical_policy(x, a, hidden_sizes, activation, output_activation, ac
     act_dim = action_space.n
     logits = basic_cnn(x)
     logp_all = tf.nn.log_softmax(logits)
-    pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
+    pi = tf.squeeze(tf.multinomial(logits,SAMPLE_ACTIONS), axis=0)  # by change sample_action and axis, pi is (SAMPLE_ACTIONS, ) now, instead of (1,)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
-    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
+    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1) #logp_pi is (SAMPLE_ACTIONS, )
     return pi, logp, logp_pi
 
 """
@@ -239,8 +240,15 @@ class VPGBuffer:
                 self.ret_buf, self.logp_buf]
 
 
-def action_is_legal(obs, action):
+def get_legal_action(obs, action_samples, logp_t_samples):
     q = np.reshape(obs, [8, 8, 3])
+    for i in range(0, SAMPLE_ACTIONS):
+        if action_is_legal(q, action_samples[i]):
+            return np.full((1,), action_samples[i]), np.full((1,), logp_t_samples[i])
+    return None, None
+
+
+def action_is_legal(q, action):
     if all(q[int(action / 8), int(action % 8)] == 0) or action == 63:
         return False
     return True
@@ -407,14 +415,13 @@ def hpc_vpg(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_cri
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
-            # This can be improved by not calculating get_action_ops everytime.
-            tries = 0
             while True:
-                tries += 1
-                a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
-                if action_is_legal(o, a):
+                # by changing the code, cnn will return a and logp_t both as (SAMPLE_ACTIONS, )
+                a_samples, v_t, logp_t_samples = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
+                # iterating a_samples and log_t_samples to get the legal one
+                a, logp_t = get_legal_action(o, a_samples, logp_t_samples)
+                if a is not None:
                     break
-            # print ("get an legal action:", a, "legal space is", obs_legal_size(o), "try: ", tries, "times")
 
             # save and log
             buf.store(o, a, r, v_t, logp_t)
@@ -471,10 +478,10 @@ if __name__ == '__main__':
     parser.add_argument('--l', type=int, default=4)
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--cpu', type=int, default=8)
-    parser.add_argument('--steps', type=int, default=8000)
+    parser.add_argument('--cpu', type=int, default=1)
+    parser.add_argument('--steps', type=int, default=2000)
     parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--exp_name', type=str, default='hpc-vpg-cnn-8')
+    parser.add_argument('--exp_name', type=str, default='hpc-vpg-cnn-1')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
