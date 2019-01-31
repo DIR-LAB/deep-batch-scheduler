@@ -183,7 +183,7 @@ class HpcEnv(gym.Env):
     def build_observation(self):
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
         vector = np.zeros((sq, sq, JOB_FEATURES), dtype=float)
-        self.job_queue.sort(key=lambda j: j.job_id)
+        self.job_queue.sort(key=lambda j: j.request_number_of_processors)
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
@@ -462,12 +462,7 @@ class HpcEnv(gym.Env):
             #    reward += 1
             #else:
             #    reward -= 1
-            if slow_down < min_slowdown:
-                reward += float(min_slowdown + 1) / float(slow_down + 1) # in case they could be 0
-            elif slow_down == min_slowdown:
-                reward += 0.0
-            else:
-                reward -= float(slow_down + 1) / float(min_slowdown + 1)
+            reward += float(min_slowdown + 1) / float(slow_down + 1)
             #if utilization > max_utilization:
             #    reward += 1
             #else:

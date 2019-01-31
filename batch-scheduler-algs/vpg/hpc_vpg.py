@@ -11,7 +11,7 @@ from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 
 EPS = 1e-8
-SAMPLE_ACTIONS = 128
+SAMPLE_ACTIONS = 256
 
 
 def combined_shape(length, shape=None):
@@ -415,11 +415,13 @@ def hpc_vpg(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_cri
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
+            tries = 0
             while True:
                 # by changing the code, cnn will return a and logp_t both as (SAMPLE_ACTIONS, )
                 a_samples, v_t, logp_t_samples = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
                 # iterating a_samples and log_t_samples to get the legal one
                 a, logp_t = get_legal_action(o, a_samples, logp_t_samples)
+                tries += 1
                 if a is not None:
                     break
 
