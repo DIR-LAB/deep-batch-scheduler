@@ -84,7 +84,7 @@ def basic_cnn(x_ph):
     )
     return tf.layers.dense(
             inputs=dropout,
-            units=64
+            units=5
     )
 
 
@@ -145,9 +145,10 @@ def cnn_categorical_policy(x, a, hidden_sizes, activation, output_activation, ac
     act_dim = action_space.n
     logits = basic_cnn(x)
     logp_all = tf.nn.log_softmax(logits)
-    pi = tf.squeeze(tf.multinomial(logits,SAMPLE_ACTIONS), axis=0)  # by change sample_action and axis, pi is (SAMPLE_ACTIONS, ) now, instead of (1,)
+    # pi = tf.squeeze(tf.multinomial(logits,SAMPLE_ACTIONS), axis=0)  # by change sample_action and axis, pi is (SAMPLE_ACTIONS, ) now, instead of (1,)
+    pi = tf.squeeze(tf.multinomial(logits, 1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
-    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1) #logp_pi is (SAMPLE_ACTIONS, )
+    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
     return pi, logp, logp_pi
 
 """
@@ -415,6 +416,8 @@ def hpc_vpg(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_cri
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
+            a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
+            '''
             tries = 0
             while True:
                 # by changing the code, cnn will return a and logp_t both as (SAMPLE_ACTIONS, )
@@ -424,7 +427,7 @@ def hpc_vpg(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_cri
                 tries += 1
                 if a is not None:
                     break
-
+            '''
             # save and log
             buf.store(o, a, r, v_t, logp_t)
             logger.store(VVals=v_t)
