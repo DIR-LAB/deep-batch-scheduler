@@ -485,8 +485,8 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=2000)
-    parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-1')
+    parser.add_argument('--epochs', type=int, default=10000)
+    parser.add_argument('--exp_name', type=str, default='hpc-vpg-cnn-2000-10000-1')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
@@ -501,7 +501,7 @@ if __name__ == '__main__':
     log_data_dir = os.path.join(current_dir, '../../data/logs/')
     logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
 
-    hpc_vpg(args.env, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic,
+    hpc_vpg(args.env, workload_file, rl_metrics_file, actor_critic=cnn_actor_critic,
             ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
             seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
             logger_kwargs=logger_kwargs)
