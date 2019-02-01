@@ -184,7 +184,7 @@ class HpcEnv(gym.Env):
     def build_observation(self):
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
         vector = np.zeros((sq, sq, JOB_FEATURES), dtype=float)
-        self.job_queue.sort(key=lambda j: j.request_number_of_processors)
+        # self.job_queue.sort(key=lambda j: j.request_number_of_processors)
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
