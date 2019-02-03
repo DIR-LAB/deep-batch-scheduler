@@ -27,7 +27,7 @@ JOB_FEATURES = 3
 MAX_JOBS_EACH_BATCH = 200
 DEBUG = False
 
-SORTING_FACTORS = 3
+SORTING_FACTORS = 6
 
 class HpcEnvCont(gym.Env):
 
@@ -204,14 +204,17 @@ class HpcEnvCont(gym.Env):
         wait_time = self.current_timestamp - job.submit_time
         normalized_wait_time = float(wait_time) / float(MAX_WAIT_TIME)
         priority_score += normalized_wait_time * action[0]
+        priority_score += normalized_wait_time * normalized_wait_time * action[1]
 
         request_processors = job.number_of_allocated_processors
         normalized_request_nodes = float(request_processors) / float(self.loads.max_procs)
-        priority_score += normalized_request_nodes * action[1]
+        priority_score += normalized_request_nodes * action[2]
+        priority_score += normalized_request_nodes * normalized_request_nodes * action[3]
 
         request_time = job.request_time
         normalized_request_time = float(request_time) / float(MAX_RUN_TIME)
-        priority_score += normalized_request_time * action[2]
+        priority_score += normalized_request_time * action[4]
+        priority_score += normalized_request_time * normalized_request_time * action[5]
 
         uid = job.user_id
         gid = job.group_id
@@ -220,6 +223,8 @@ class HpcEnvCont(gym.Env):
 
     def step(self, action):
         # action is the weights of the priority function.
+        if DEBUG:
+            print("action,", action)
         all_jobs = list(self.job_queue)
         all_jobs.sort(key=lambda j: (self.priority_fn(j, action)))
 
@@ -434,7 +439,7 @@ class HpcEnvCont(gym.Env):
 
             # give more rewards if the average queue length is long
             if slow_down < min_slowdown:
-                reward = float(min_slowdown + 1) / float(slow_down + 1) * average_queue_size
+                reward = float(min_slowdown + 1) / float(slow_down + 1)  # * average_queue_size
             else:
                 reward += (float(min_slowdown + 1) / float(slow_down + 1))
 
