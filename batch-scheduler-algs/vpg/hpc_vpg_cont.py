@@ -476,9 +476,9 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=40)
-    parser.add_argument('--steps', type=int, default=10000)
+    parser.add_argument('--steps', type=int, default=2000)
     parser.add_argument('--epochs', type=int, default=40000)
-    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-1w-4k-lr-6')
+    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-2k-4w-lr-6')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
