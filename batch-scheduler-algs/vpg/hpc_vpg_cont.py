@@ -1,11 +1,11 @@
 import numpy as np
 import tensorflow as tf
-import scipy.signal
 import gym
+import time
 import os
+import scipy.signal
 import hpc
 from gym.spaces import Box, Discrete
-import time
 from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
@@ -17,17 +17,14 @@ def combined_shape(length, shape=None):
         return (length,)
     return (length, shape) if np.isscalar(shape) else (length, *shape)
 
-def keys_as_sorted_list(dict):
-    return sorted(list(dict.keys()))
-
-def values_as_sorted_list(dict):
-    return [dict[k] for k in keys_as_sorted_list(dict)]
 
 def placeholder(dim=None):
     return tf.placeholder(dtype=tf.float32, shape=combined_shape(None,dim))
 
+
 def placeholders(*args):
     return [placeholder(dim) for dim in args]
+
 
 def placeholder_from_space(space):
     if isinstance(space, Box):
@@ -35,6 +32,7 @@ def placeholder_from_space(space):
     elif isinstance(space, Discrete):
         return tf.placeholder(dtype=tf.int32, shape=(None,))
     raise NotImplementedError
+
 
 def placeholders_from_spaces(*args):
     return [placeholder_from_space(space) for space in args]
@@ -44,8 +42,53 @@ def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
         x = tf.layers.dense(x, units=h, activation=activation)
     return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
 
+def basic_cnn(x_ph):
+    x = tf.reshape(x_ph, shape=[-1, 8, 8, 3])
+    conv1 = tf.layers.conv2d(
+            inputs=x,
+            filters=32,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool1 = tf.layers.max_pooling2d(
+            inputs=conv1,
+            pool_size=[2, 2],
+            strides=2
+    )
+    conv2 = tf.layers.conv2d(
+            inputs=pool1,
+            filters=64,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool2 = tf.layers.max_pooling2d(
+            inputs=conv2,
+            pool_size=[2, 2],
+            strides=2
+    )
+    flat = tf.reshape(pool2, [-1, 2 * 2 * 64])
+    dense = tf.layers.dense(
+            inputs=flat,
+            units=1024,
+            activation=tf.nn.relu
+    )
+    dropout = tf.layers.dropout(
+            inputs=dense,
+            rate=0.5,
+    )
+    return tf.layers.dense(
+            inputs=dropout,
+            units=5
+    )
+
+
 def get_vars(scope=''):
     return [x for x in tf.trainable_variables() if scope in x.name]
+
 
 def count_vars(scope=''):
     v = get_vars(scope)
@@ -54,43 +97,6 @@ def count_vars(scope=''):
 def gaussian_likelihood(x, mu, log_std):
     pre_sum = -0.5 * (((x-mu)/(tf.exp(log_std)+EPS))**2 + 2*log_std + np.log(2*np.pi))
     return tf.reduce_sum(pre_sum, axis=1)
-
-def diagonal_gaussian_kl(mu0, log_std0, mu1, log_std1):
-    """
-    tf symbol for mean KL divergence between two batches of diagonal gaussian distributions,
-    where distributions are specified by means and log stds.
-    (https://en.wikipedia.org/wiki/Kullback-Leibler_divergence#Multivariate_normal_distributions)
-    """
-    var0, var1 = tf.exp(2 * log_std0), tf.exp(2 * log_std1)
-    pre_sum = 0.5*(((mu1- mu0)**2 + var0)/(var1 + EPS) - 1) +  log_std1 - log_std0
-    all_kls = tf.reduce_sum(pre_sum, axis=1)
-    return tf.reduce_mean(all_kls)
-
-def categorical_kl(logp0, logp1):
-    """
-    tf symbol for mean KL divergence between two batches of categorical probability distributions,
-    where the distributions are input as log probs.
-    """
-    all_kls = tf.reduce_sum(tf.exp(logp1) * (logp1 - logp0), axis=1)
-    return tf.reduce_mean(all_kls)
-
-def flat_concat(xs):
-    return tf.concat([tf.reshape(x,(-1,)) for x in xs], axis=0)
-
-def flat_grad(f, params):
-    return flat_concat(tf.gradients(xs=params, ys=f))
-
-def hessian_vector_product(f, params):
-    # for H = grad**2 f, compute Hx
-    g = flat_grad(f, params)
-    x = tf.placeholder(tf.float32, shape=g.shape)
-    return x, flat_grad(tf.reduce_sum(g*x), params)
-
-def assign_params_from_flat(x, params):
-    flat_size = lambda p : int(np.prod(p.shape.as_list())) # the 'int' is important for scalars
-    splits = tf.split(x, [flat_size(p) for p in params])
-    new_params = [tf.reshape(p_new, p.shape) for p, p_new in zip(params, splits)]
-    return tf.group([tf.assign(p, p_new) for p, p_new in zip(params, new_params)])
 
 def discount_cumsum(x, discount):
     """
@@ -109,9 +115,6 @@ def discount_cumsum(x, discount):
     """
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
-"""
-Policies
-"""
 
 def mlp_categorical_policy(x, a, hidden_sizes, activation, output_activation, action_space):
     act_dim = action_space.n
@@ -120,15 +123,7 @@ def mlp_categorical_policy(x, a, hidden_sizes, activation, output_activation, ac
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
-
-    old_logp_all = placeholder(act_dim)
-    d_kl = categorical_kl(logp_all, old_logp_all)
-
-    info = {'logp_all': logp_all}
-    info_phs = {'logp_all': old_logp_all}
-
-    return pi, logp, logp_pi, info, info_phs, d_kl
-
+    return pi, logp, logp_pi
 
 def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation, action_space):
     act_dim = a.shape.as_list()[-1]
@@ -138,19 +133,8 @@ def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation, actio
     pi = mu + tf.random_normal(tf.shape(mu)) * std
     logp = gaussian_likelihood(a, mu, log_std)
     logp_pi = gaussian_likelihood(pi, mu, log_std)
+    return pi, logp, logp_pi
 
-    old_mu_ph, old_log_std_ph = placeholders(act_dim, act_dim)
-    d_kl = diagonal_gaussian_kl(mu, log_std, old_mu_ph, old_log_std_ph)
-
-    info = {'mu': mu, 'log_std': log_std}
-    info_phs = {'mu': old_mu_ph, 'log_std': old_log_std_ph}
-
-    return pi, logp, logp_pi, info, info_phs, d_kl
-
-
-"""
-Actor-Critics
-"""
 def mlp_actor_critic(x, a, hidden_sizes=(64,64), activation=tf.tanh,
                      output_activation=None, policy=None, action_space=None):
 
@@ -161,21 +145,48 @@ def mlp_actor_critic(x, a, hidden_sizes=(64,64), activation=tf.tanh,
         policy = mlp_categorical_policy
 
     with tf.variable_scope('pi'):
-        policy_outs = policy(x, a, hidden_sizes, activation, output_activation, action_space)
-        pi, logp, logp_pi, info, info_phs, d_kl = policy_outs
+        pi, logp, logp_pi = policy(x, a, hidden_sizes, activation, output_activation, action_space)
     with tf.variable_scope('v'):
         v = tf.squeeze(mlp(x, list(hidden_sizes)+[1], activation, None), axis=1)
-    return pi, logp, logp_pi, info, info_phs, d_kl, v
+    return pi, logp, logp_pi, v
 
 
-class GAEBuffer:
+"""
+Policies
+"""
+def cnn_categorical_policy(x, a, hidden_sizes, activation, output_activation, action_space):
+    act_dim = action_space.n
+    logits = basic_cnn(x)
+    logp_all = tf.nn.log_softmax(logits)
+    pi = tf.squeeze(tf.multinomial(logits, 1), axis=1)
+    logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
+    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
+    return pi, logp, logp_pi
+
+"""
+Actor-Critics
+"""
+def cnn_actor_critic(x, a, hidden_sizes=(64,64), activation=tf.tanh,
+                     output_activation=None, policy=None, action_space=None):
+
+    # default policy builder depends on action space
+    policy = cnn_categorical_policy
+
+    with tf.variable_scope('pi'):
+        pi, logp, logp_pi = policy(x, a, hidden_sizes, activation, output_activation, action_space)
+    with tf.variable_scope('v'):
+        v = tf.squeeze(mlp(x, list(hidden_sizes)+[1], activation, None), axis=1)
+    return pi, logp, logp_pi, v
+
+
+class VPGBuffer:
     """
-    A buffer for storing trajectories experienced by a TRPO agent interacting
+    A buffer for storing trajectories experienced by a HPC VPG agent interacting
     with the environment, and using Generalized Advantage Estimation (GAE-Lambda)
     for calculating the advantages of state-action pairs.
     """
 
-    def __init__(self, obs_dim, act_dim, size, info_shapes, gamma=0.99, lam=0.95):
+    def __init__(self, obs_dim, act_dim, size, gamma=0.99, lam=0.95):
         self.obs_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
         self.act_buf = np.zeros(combined_shape(size, act_dim), dtype=np.float32)
         self.adv_buf = np.zeros(size, dtype=np.float32)
@@ -183,12 +194,10 @@ class GAEBuffer:
         self.ret_buf = np.zeros(size, dtype=np.float32)
         self.val_buf = np.zeros(size, dtype=np.float32)
         self.logp_buf = np.zeros(size, dtype=np.float32)
-        self.info_bufs = {k: np.zeros([size] + list(v), dtype=np.float32) for k, v in info_shapes.items()}
-        self.sorted_info_keys = keys_as_sorted_list(self.info_bufs)
         self.gamma, self.lam = gamma, lam
         self.ptr, self.path_start_idx, self.max_size = 0, 0, size
 
-    def store(self, obs, act, rew, val, logp, info):
+    def store(self, obs, act, rew, val, logp):
         """
         Append one timestep of agent-environment interaction to the buffer.
         """
@@ -198,8 +207,6 @@ class GAEBuffer:
         self.rew_buf[self.ptr] = rew
         self.val_buf[self.ptr] = val
         self.logp_buf[self.ptr] = logp
-        for i, k in enumerate(self.sorted_info_keys):
-            self.info_bufs[k][self.ptr] = info[i]
         self.ptr += 1
 
     def finish_path(self, last_val=0):
@@ -242,24 +249,36 @@ class GAEBuffer:
         # the next two lines implement the advantage normalization trick
         adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
         self.adv_buf = (self.adv_buf - adv_mean) / adv_std
-        return [self.obs_buf, self.act_buf, self.adv_buf, self.ret_buf,
-                self.logp_buf] + values_as_sorted_list(self.info_bufs)
+        return [self.obs_buf, self.act_buf, self.adv_buf,
+                self.ret_buf, self.logp_buf]
 
+def action_is_legal(q, action):
+    if all(q[int(action / 8), int(action % 8)] == 0) or action == 63:
+        return False
+    return True
+
+
+def obs_legal_size(obs):
+    q = np.reshape(obs, [8, 8, 3])
+    legal = 0
+    for i in range(0, 8):
+        for j in range(0, 8):
+            if not all(q[i,j] == 0):
+                legal += 1
+    legal -= 1
+    return legal
 
 """
 
-Trust Region Policy Optimization 
+Vanilla Policy Gradient
 
-(with support for Natural Policy Gradient)
+(with GAE-Lambda for advantage estimation)
 
 """
-
-
-def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
-         steps_per_epoch=4000, epochs=50, gamma=0.99, delta=0.01, vf_lr=1e-3,
-         train_v_iters=80, damping_coeff=0.1, cg_iters=10, backtrack_iters=10,
-         backtrack_coeff=0.8, lam=0.97, max_ep_len=1000, logger_kwargs=dict(),
-         save_freq=10, algo='trpo'):
+def hpc_vpg_cont(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
+                 steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
+                 vf_lr=1e-3, train_v_iters=80, lam=0.97, max_ep_len=10000,
+                 logger_kwargs=dict(), save_freq=10):
     """
 
     Args:
@@ -270,38 +289,24 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
             for state, ``x_ph``, and action, ``a_ph``, and returns the main
             outputs from the agent's Tensorflow computation graph:
 
-            ============  ================  ========================================
-            Symbol        Shape             Description
-            ============  ================  ========================================
-            ``pi``        (batch, act_dim)  | Samples actions from policy given
-                                            | states.
-            ``logp``      (batch,)          | Gives log probability, according to
-                                            | the policy, of taking actions ``a_ph``
-                                            | in states ``x_ph``.
-            ``logp_pi``   (batch,)          | Gives log probability, according to
-                                            | the policy, of the action sampled by
-                                            | ``pi``.
-            ``info``      N/A               | A dict of any intermediate quantities
-                                            | (from calculating the policy or log
-                                            | probabilities) which are needed for
-                                            | analytically computing KL divergence.
-                                            | (eg sufficient statistics of the
-                                            | distributions)
-            ``info_phs``  N/A               | A dict of placeholders for old values
-                                            | of the entries in ``info``.
-            ``d_kl``      ()                | A symbol for computing the mean KL
-                                            | divergence between the current policy
-                                            | (``pi``) and the old policy (as
-                                            | specified by the inputs to
-                                            | ``info_phs``) over the batch of
-                                            | states given in ``x_ph``.
-            ``v``         (batch,)          | Gives the value estimate for states
-                                            | in ``x_ph``. (Critical: make sure
-                                            | to flatten this!)
-            ============  ================  ========================================
+            ===========  ================  ======================================
+            Symbol       Shape             Description
+            ===========  ================  ======================================
+            ``pi``       (batch, act_dim)  | Samples actions from policy given
+                                           | states.
+            ``logp``     (batch,)          | Gives log probability, according to
+                                           | the policy, of taking actions ``a_ph``
+                                           | in states ``x_ph``.
+            ``logp_pi``  (batch,)          | Gives log probability, according to
+                                           | the policy, of the action sampled by
+                                           | ``pi``.
+            ``v``        (batch,)          | Gives the value estimate for states
+                                           | in ``x_ph``. (Critical: make sure
+                                           | to flatten this!)
+            ===========  ================  ======================================
 
         ac_kwargs (dict): Any kwargs appropriate for the actor_critic
-            function you provided to TRPO.
+            function you provided to VPG.
 
         seed (int): Seed for random number generators.
 
@@ -313,36 +318,12 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
 
         gamma (float): Discount factor. (Always between 0 and 1.)
 
-        delta (float): KL-divergence limit for TRPO / NPG update.
-            (Should be small for stability. Values like 0.01, 0.05.)
+        pi_lr (float): Learning rate for policy optimizer.
 
         vf_lr (float): Learning rate for value function optimizer.
 
         train_v_iters (int): Number of gradient descent steps to take on
             value function per epoch.
-
-        damping_coeff (float): Artifact for numerical stability, should be
-            smallish. Adjusts Hessian-vector product calculation:
-
-            .. math:: Hv \\rightarrow (\\alpha I + H)v
-
-            where :math:`\\alpha` is the damping coefficient.
-            Probably don't play with this hyperparameter.
-
-        cg_iters (int): Number of iterations of conjugate gradient to perform.
-            Increasing this will lead to a more accurate approximation
-            to :math:`H^{-1} g`, and possibly slightly-improved performance,
-            but at the cost of slowing things down.
-
-            Also probably don't play with this hyperparameter.
-
-        backtrack_iters (int): Maximum number of steps allowed in the
-            backtracking line search. Since the line search usually doesn't
-            backtrack, and usually only steps back once when it does, this
-            hyperparameter doesn't often matter.
-
-        backtrack_coeff (float): How far back to step during backtracking line
-            search. (Always between 0 and 1, usually above 0.5.)
 
         lam (float): Lambda for GAE-Lambda. (Always between 0 and 1,
             close to 1.)
@@ -353,9 +334,6 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
 
         save_freq (int): How often (in terms of gap between epochs) to save
             the current policy and value function.
-
-        algo: Either 'trpo' or 'npg': this code supports both, since they are
-            almost the same.
 
     """
 
@@ -379,42 +357,34 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
     x_ph, a_ph = placeholders_from_spaces(env.observation_space, env.action_space)
     adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
 
-    # Main outputs from computation graph, plus placeholders for old pdist (for KL)
-    pi, logp, logp_pi, info, info_phs, d_kl, v = actor_critic(x_ph, a_ph, **ac_kwargs)
+    # Main outputs from computation graph
+    pi, logp, logp_pi, v = actor_critic(x_ph, a_ph, **ac_kwargs)
 
     # Need all placeholders in *this* order later (to zip with data from buffer)
-    all_phs = [x_ph, a_ph, adv_ph, ret_ph, logp_old_ph] + values_as_sorted_list(info_phs)
+    all_phs = [x_ph, a_ph, adv_ph, ret_ph, logp_old_ph]
 
-    # Every step, get: action, value, logprob, & info for pdist (for computing kl div)
-    get_action_ops = [pi, v, logp_pi] + values_as_sorted_list(info)
+    # Every step, get: action, value, and logprob
+    get_action_ops = [pi, v, logp_pi]
 
     # Experience buffer
     local_steps_per_epoch = int(steps_per_epoch / num_procs())
-    info_shapes = {k: v.shape.as_list()[1:] for k, v in info_phs.items()}
-    buf = GAEBuffer(obs_dim, act_dim, local_steps_per_epoch, info_shapes, gamma, lam)
+    buf = VPGBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
 
     # Count variables
     var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
     logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
 
-    # TRPO losses
-    ratio = tf.exp(logp - logp_old_ph)  # pi(a|s) / pi_old(a|s)
-    pi_loss = -tf.reduce_mean(ratio * adv_ph)
+    # VPG objectives
+    pi_loss = -tf.reduce_mean(logp * adv_ph)
     v_loss = tf.reduce_mean((ret_ph - v) ** 2)
 
-    # Optimizer for value function
-    train_vf = MpiAdamOptimizer(learning_rate=vf_lr).minimize(v_loss)
+    # Info (useful to watch during learning)
+    approx_kl = tf.reduce_mean(logp_old_ph - logp)  # a sample estimate for KL-divergence, easy to compute
+    approx_ent = tf.reduce_mean(-logp)  # a sample estimate for entropy, also easy to compute
 
-    # Symbols needed for CG solver
-    pi_params = get_vars('pi')
-    gradient = flat_grad(pi_loss, pi_params)
-    v_ph, hvp = hessian_vector_product(d_kl, pi_params)
-    if damping_coeff > 0:
-        hvp += damping_coeff * v_ph
-
-    # Symbols for getting and setting params
-    get_pi_params = flat_concat(pi_params)
-    set_pi_params = assign_params_from_flat(v_ph, pi_params)
+    # Optimizers
+    train_pi = MpiAdamOptimizer(learning_rate=pi_lr).minimize(pi_loss)
+    train_v = MpiAdamOptimizer(learning_rate=vf_lr).minimize(v_loss)
 
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
@@ -425,66 +395,21 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
     # Setup model saving
     logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'pi': pi, 'v': v})
 
-    def cg(Ax, b):
-        """
-        Conjugate gradient algorithm
-        (see https://en.wikipedia.org/wiki/Conjugate_gradient_method)
-        """
-        x = np.zeros_like(b)
-        r = b.copy()  # Note: should be 'b - Ax(x)', but for x=0, Ax(x)=0. Change if doing warm start.
-        p = r.copy()
-        r_dot_old = np.dot(r, r)
-        for _ in range(cg_iters):
-            z = Ax(p)
-            alpha = r_dot_old / (np.dot(p, z) + EPS)
-            x += alpha * p
-            r -= alpha * z
-            r_dot_new = np.dot(r, r)
-            p = r + (r_dot_new / r_dot_old) * p
-            r_dot_old = r_dot_new
-        return x
-
     def update():
-        # Prepare hessian func, gradient eval
         inputs = {k: v for k, v in zip(all_phs, buf.get())}
-        Hx = lambda x: mpi_avg(sess.run(hvp, feed_dict={**inputs, v_ph: x}))
-        g, pi_l_old, v_l_old = sess.run([gradient, pi_loss, v_loss], feed_dict=inputs)
-        g, pi_l_old = mpi_avg(g), mpi_avg(pi_l_old)
+        pi_l_old, v_l_old, ent = sess.run([pi_loss, v_loss, approx_ent], feed_dict=inputs)
 
-        # Core calculations for TRPO or NPG
-        x = cg(Hx, g)
-        alpha = np.sqrt(2 * delta / (np.dot(x, Hx(x)) + EPS))
-        old_params = sess.run(get_pi_params)
+        # Policy gradient step
+        sess.run(train_pi, feed_dict=inputs)
 
-        def set_and_eval(step):
-            sess.run(set_pi_params, feed_dict={v_ph: old_params - alpha * x * step})
-            return mpi_avg(sess.run([d_kl, pi_loss], feed_dict=inputs))
-
-        if algo == 'npg':
-            # npg has no backtracking or hard kl constraint enforcement
-            kl, pi_l_new = set_and_eval(step=1.)
-
-        elif algo == 'trpo':
-            # trpo augments npg with backtracking line search, hard kl
-            for j in range(backtrack_iters):
-                kl, pi_l_new = set_and_eval(step=backtrack_coeff ** j)
-                if kl <= delta and pi_l_new <= pi_l_old:
-                    logger.log('Accepting new params at step %d of line search.' % j)
-                    logger.store(BacktrackIters=j)
-                    break
-
-                if j == backtrack_iters - 1:
-                    logger.log('Line search failed! Keeping old params.')
-                    logger.store(BacktrackIters=j)
-                    kl, pi_l_new = set_and_eval(step=0.)
-
-        # Value function updates
+        # Value function learning
         for _ in range(train_v_iters):
-            sess.run(train_vf, feed_dict=inputs)
-        v_l_new = sess.run(v_loss, feed_dict=inputs)
+            sess.run(train_v, feed_dict=inputs)
 
         # Log changes from update
-        logger.store(LossPi=pi_l_old, LossV=v_l_old, KL=kl,
+        pi_l_new, v_l_new, kl = sess.run([pi_loss, v_loss, approx_kl], feed_dict=inputs)
+        logger.store(LossPi=pi_l_old, LossV=v_l_old,
+                     KL=kl, Entropy=ent,
                      DeltaLossPi=(pi_l_new - pi_l_old),
                      DeltaLossV=(v_l_new - v_l_old))
 
@@ -494,14 +419,12 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
-            agent_outs = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
-            a, v_t, logp_t, info_t = agent_outs[0][0], agent_outs[1], agent_outs[2], agent_outs[3:]
-
+            a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
             # save and log
-            buf.store(o, a, r, v_t, logp_t, info_t)
+            buf.store(o, a, r, v_t, logp_t)
             logger.store(VVals=v_t)
 
-            o, r, d, _ = env.step(a)
+            o, r, d, _ = env.step(a[0])
             ep_ret += r
             ep_len += 1
 
@@ -521,7 +444,7 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
         if (epoch % save_freq == 0) or (epoch == epochs - 1):
             logger.save_state({'env': env}, None)
 
-        # Perform TRPO or NPG update!
+        # Perform VPG update!
         update()
 
         # Log info about epoch
@@ -534,9 +457,8 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
         logger.log_tabular('LossV', average_only=True)
         logger.log_tabular('DeltaLossPi', average_only=True)
         logger.log_tabular('DeltaLossV', average_only=True)
+        logger.log_tabular('Entropy', average_only=True)
         logger.log_tabular('KL', average_only=True)
-        if algo == 'trpo':
-            logger.log_tabular('BacktrackIters', average_only=True)
         logger.log_tabular('Time', time.time() - start_time)
         logger.dump_tabular()
 
@@ -544,7 +466,7 @@ def trpo(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='Scheduler-v0')
+    parser.add_argument('--env', type=str, default='Scheduler-cont-v0')
     parser.add_argument('--workload', type=str,
                         default='../../data/RICC-2010-2.swf')
     parser.add_argument('--rlmetrics', type=str,
@@ -554,9 +476,9 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=4000)
+    parser.add_argument('--steps', type=int, default=2000)
     parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--exp_name', type=str, default='hpc-trpo')
+    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
@@ -571,7 +493,7 @@ if __name__ == '__main__':
     log_data_dir = os.path.join(current_dir, '../../data/logs/')
     logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
 
-    trpo(args.env, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic,
-         ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
-         seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
-         logger_kwargs=logger_kwargs)
+    hpc_vpg_cont(args.env, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic,
+                 ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
+                 seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
+                 logger_kwargs=logger_kwargs)
