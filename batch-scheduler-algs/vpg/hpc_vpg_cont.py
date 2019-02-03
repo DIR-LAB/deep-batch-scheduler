@@ -276,8 +276,8 @@ Vanilla Policy Gradient
 
 """
 def hpc_vpg_cont(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
-                 steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=1e-6,
-                 vf_lr=1e-5, train_v_iters=80, lam=0.97, max_ep_len=10000,
+                 steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=1e-5,
+                 vf_lr=1e-4, train_v_iters=80, lam=0.97, max_ep_len=10000,
                  logger_kwargs=dict(), save_freq=10):
     """
 
@@ -477,8 +477,8 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=40)
     parser.add_argument('--steps', type=int, default=2000)
-    parser.add_argument('--epochs', type=int, default=40000)
-    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-2k-4w-lr-6')
+    parser.add_argument('--epochs', type=int, default=4000)
+    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-2k-4k-lr-5')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
