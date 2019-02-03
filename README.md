@@ -18,9 +18,9 @@ sudo apt-get install openmpi-bin openmpi-doc libopenmpi-dev
 
 * Tensorflow
 ```bash
-sudo apt install python3-dev python3-pip
+sudo apt install python3.6-dev python3-pip
 sudo pip3 install -U virtualenv
-virtualenv --system-site-packages -p python3 ./venv
+virtualenv --system-site-packages -p python3.6 ./venv
 source ./venv/bin/activate  # sh, bash, ksh, or zsh
 pip install --upgrade pip
 pip install --upgrade tensorflow
@@ -37,4 +37,14 @@ pip install -e ./gym
 ```bash
 git clone https://github.com/openai/spinningup.git
 pip install -e ./spinningup
+```
+
+### SSH Key Install
+```bash
+eval `ssh-agent -s`
+ssh-add ~/...
+```
+### Install Deep Batch Scheduler
+```bash
+git clone git@github.com:DIR-LAB/deep-batch-scheduler.git
 ```
