@@ -56,7 +56,13 @@ class RLProcessor():
 
     def unicef(self, job):
         wait_time = self.current_timestamp - job.submit_time
-        return 0 - (float(wait_time) / (math.log2(job.request_number_of_processors + 2) * (job.run_time + 0.0001)))
+        if job.job_id == 0:
+            return 0
+        round = int(math.ceil(job.request_number_of_processors / 8))*8
+        #print("job:", job, "job request processor", round, "job runtime", job.run_time)
+        return 0 - (float(wait_time)
+                    /
+                    (math.log2(round) * (job.run_time)))
 
     def fcfs_priority(self, job):
         return job.submit_time
