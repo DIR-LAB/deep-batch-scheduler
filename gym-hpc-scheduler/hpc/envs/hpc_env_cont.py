@@ -77,7 +77,15 @@ class HpcEnvCont(gym.Env):
 
         with open(pre_processed_metrics_file, 'r') as f:
             self.pre_processed_job_metrics = json.load(f)
-        self.pre_processed_job_list = list(self.pre_processed_job_metrics)  # get the key list of high quality items
+        #self.pre_processed_job_list = list(self.pre_processed_job_metrics)  # get the key list of high quality items
+
+        for key, value in self.pre_processed_job_metrics.items():
+            for innerkey, innervalue in value.items():
+                if innervalue[-1] > 30:
+                    self.pre_processed_job_list.append(key)
+                    break
+
+        print("average queue size > 10", len(self.pre_processed_job_list))
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -109,7 +117,7 @@ class HpcEnvCont(gym.Env):
         self.Metrics_System_Utilization = 0
 
         # randomly choose a start point in current workload (has to be high quality sequence)
-        high_quality_sample_size = len(self.pre_processed_job_metrics)
+        high_quality_sample_size = len(self.pre_processed_job_list)
         self.start = int(self.pre_processed_job_list[self.np_random.randint(0, high_quality_sample_size)])
         # print ("reset, select item: ", self.start)
         # how many jobs are remained in the workload
