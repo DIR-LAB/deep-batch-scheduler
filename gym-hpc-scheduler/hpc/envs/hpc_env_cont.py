@@ -475,7 +475,7 @@ class HpcEnvCont(gym.Env):
             if slow_down < min_slowdown:
                 reward = float(min_slowdown + 1) / float(slow_down + 1)  # * average_queue_size
             else:
-                reward += (float(min_slowdown + 1) / float(slow_down + 1))
+                reward = - (float(slow_down + 1) / float(min_slowdown + 1))  # punish negative.
 
             # reward = float(min_bsld + 1) / float (bsld + 1)
             # if execution_time < min_total:
