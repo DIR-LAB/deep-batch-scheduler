@@ -16,7 +16,9 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 63
+MAX_QUEUE_SIZE = 64
+MAX_MACHINE_SIZE = 1024
+
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
@@ -35,7 +37,8 @@ class HpcEnvCont(gym.Env):
         super(HpcEnvCont, self).__init__()
 
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(SORTING_FACTORS, ), dtype=np.float32)
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
+        self.observation_space = spaces.Box(low=0.0, high=1.0,
+                                            shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + MAX_MACHINE_SIZE),),
                                             dtype=np.float32)
 
         self.np_random = self.np_random, seed = seeding.np_random(1)
@@ -152,7 +155,10 @@ class HpcEnvCont(gym.Env):
 
     def build_observation(self):
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
-        vector = np.zeros((sq, sq, JOB_FEATURES), dtype=float)
+        job_queue_row = sq
+        machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
+
+        vector = np.zeros(((job_queue_row + machine_row), sq, JOB_FEATURES), dtype=float)
         # self.job_queue.sort(key=lambda j: j.request_number_of_processors)
 
         for i in range(0, MAX_QUEUE_SIZE):
@@ -172,16 +178,34 @@ class HpcEnvCont(gym.Env):
                 wait_time = 0
             else:
                 wait_time = self.current_timestamp - submit_time
-            normalized_wait_time = float(wait_time) / float(MAX_WAIT_TIME)
-            normalized_request_time = float(request_time) / float(MAX_RUN_TIME)
-            # normalized_run_time = float(run_time) / float(MAX_RUN_TIME)
-            normalized_request_nodes = float(request_processors) / float(self.loads.max_procs)
+            normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1)
+            # normalized_request_time = min(float(request_time) / float(MAX_RUN_TIME), 1)
+            normalized_run_time = min(float(run_time) / float(MAX_RUN_TIME), 1)
+            normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1)
 
-            vector[int(i / sq), int(i % sq)] = [normalized_wait_time, normalized_request_time, normalized_request_nodes]
+            vector[int(i / sq), int(i % sq)] = [normalized_wait_time, normalized_run_time, normalized_request_nodes]
 
-        cluster_usage = float(self.cluster.free_node) / float(self.cluster.total_node)
-        vector[int (MAX_QUEUE_SIZE / sq), int(MAX_QUEUE_SIZE % sq)] = [cluster_usage, cluster_usage, cluster_usage]
-        return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1) * JOB_FEATURES])
+        for i in range(MAX_QUEUE_SIZE, MAX_QUEUE_SIZE + MAX_MACHINE_SIZE):
+            machine_id = i - MAX_QUEUE_SIZE
+            cpu_avail = 1.0
+            mem_avail = 1.0
+            io_avail = 1.0
+            if self.cluster.all_nodes[machine_id].is_free:
+                cpu_avail = 1.0
+            else:
+                running_job_id = self.cluster.all_nodes[machine_id].running_job_id
+                running_job = None
+                for _j in self.running_jobs:
+                    if _j.job_id == running_job_id:
+                        running_job = _j
+                        break
+
+                reminder = running_job.scheduled_time + running_job.run_time - self.current_timestamp
+                cpu_avail = max(MAX_RUN_TIME - reminder, 0) / MAX_RUN_TIME
+
+            vector[int(i / sq), int(i % sq)] = [cpu_avail, mem_avail, io_avail]
+
+        return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + MAX_MACHINE_SIZE) * JOB_FEATURES])
 
     def _is_job_queue_empty(self):
         return all(v.job_id == 0 for v in self.job_queue)
@@ -399,7 +423,7 @@ class HpcEnvCont(gym.Env):
         if done:
             execution_time = self.Metrics_Total_Execution_Time
             slow_down = self.Metrics_Average_Slow_Down
-            bsld = self.Metrics_Average_BSLD
+            bsld = self.Metrics_Average_BSLD / MAX_JOBS_EACH_BATCH
             response_time = self.Metrics_Average_Response_Time
             utilization = float(self.Metrics_System_Utilization) / float(self.cluster.num_procs_per_node *
                                                                          self.cluster.total_node *
@@ -416,6 +440,7 @@ class HpcEnvCont(gym.Env):
 
             min_total = sys.maxsize
             min_slowdown = sys.maxsize
+            min_bsld = sys.maxsize
             min_response = sys.maxsize
             max_utilization = 0
 
@@ -433,16 +458,18 @@ class HpcEnvCont(gym.Env):
                     min_response = resp_ts
                 if util_ts > max_utilization:
                     max_utilization = util_ts
+                #if bsld_ts < min_bsld:
+                #    min_bsld = bsld_ts
 
             if DEBUG:
                 print("SlowDown. RL Agent:", slow_down, "Best of all:", min_slowdown)
 
-            # give more rewards if the average queue length is long
             if slow_down < min_slowdown:
                 reward = float(min_slowdown + 1) / float(slow_down + 1)  # * average_queue_size
             else:
                 reward += (float(min_slowdown + 1) / float(slow_down + 1))
 
+            # reward = float(min_bsld + 1) / float (bsld + 1)
             # if execution_time < min_total:
             #    reward += 1
             # else:

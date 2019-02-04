@@ -1,11 +1,12 @@
 import sys
 import json
+import math
 
 from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
 MAX_QUEUE_SIZE = 63
-MAX_JOBS_EACH_BATCH = 500
+MAX_JOBS_EACH_BATCH = 200
 
 class RLProcessor():
 
@@ -30,6 +31,7 @@ class RLProcessor():
         self.Metrics_Total_Execution_Time = 0  # Max(job.scheduled_time + job.run_time)
         self.Metrics_Average_Response_Time = 0  # (job.scheduled_time + job.run_time - job.submit_time) / num_of_jobs
         self.Metrics_Average_Slow_Down = 0  # (job.scheduled_time - job.submit_time) / num_of_jobs
+        self.Metrics_Average_BSLD = 0.0     # bounded slowdown objective function (see paper SC17)
         self.Metrics_System_Utilization = 0  # (cluster.used_node * t_used / cluster.total_node * t_max)
 
         self.scheduler_algs = {
@@ -37,13 +39,24 @@ class RLProcessor():
                 1: self.smallest_job_first,
                 2: self.shortest_job_first,
                 3: self.largest_job_first,
-                4: self.longest_job_first
+                4: self.longest_job_first,
+                5: self.wfp_3,
+                6: self.unicef
         }
 
         print("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs / self.loads.max_nodes)
         self.output_file = output_file
+
+    def wfp_3(self, job):
+        wait_time = self.current_timestamp - job.submit_time
+        tmp = float(wait_time) / float(job.run_time + 0.0001)
+        return 0 - (tmp ** 3) * job.request_number_of_processors
+
+    def unicef(self, job):
+        wait_time = self.current_timestamp - job.submit_time
+        return 0 - (float(wait_time) / (math.log2(job.request_number_of_processors + 2) * (job.run_time + 0.0001)))
 
     def fcfs_priority(self, job):
         return job.submit_time
@@ -102,10 +115,12 @@ class RLProcessor():
                 high_quality = False
                 metrics_dict = {}
 
-                for j in range(0, 5):
+                for j in range(0, 7):
                     metrics_list, s_log, average_queue_size = \
                         self.get_metrics_using_algorithm(j, i, (i + MAX_JOBS_EACH_BATCH))
                     metrics_list.append(average_queue_size)
+                    metrics_list.append(s_log)
+
                     metrics_dict[j] = metrics_list
                     # print(j, "-", average_queue_size, end=", ")
                     if average_queue_size > 2:
@@ -113,6 +128,7 @@ class RLProcessor():
 
                 if high_quality:
                     out_dict[i] = metrics_dict
+                    print("dict size,", len(out_dict))
                 print("Process", i, "as high/low quality sequence", high_quality)
 
             print ("Size of high quality sequences:", len(out_dict))
@@ -149,6 +165,7 @@ class RLProcessor():
         self.Metrics_Probe_Times = 0
         self.Metrics_Total_Execution_Time = 0
         self.Metrics_Average_Slow_Down = 0
+        self.Metrics_Average_BSLD = 0.0
         self.Metrics_Average_Response_Time = 0
         self.Metrics_System_Utilization = 0
 
@@ -180,6 +197,9 @@ class RLProcessor():
                     self.Metrics_Total_Execution_Time = max(self.Metrics_Total_Execution_Time,
                                                             self.job_queue[i].scheduled_time + self.job_queue[i].run_time)
                     self.Metrics_Average_Slow_Down += (self.job_queue[i].scheduled_time - self.job_queue[i].submit_time)
+                    self.Metrics_Average_BSLD += max(1.0, (float(
+                        self.job_queue[i].scheduled_time - self.job_queue[i].submit_time + self.job_queue[i].run_time) / max(
+                            self.job_queue[i].run_time, 10)))
                     self.Metrics_Average_Response_Time += (self.job_queue[i].scheduled_time
                                                            - self.job_queue[i].submit_time + self.job_queue[i].run_time)
                     self.Metrics_System_Utilization += (self.job_queue[i].run_time *
@@ -238,6 +258,10 @@ class RLProcessor():
                             self.Metrics_Total_Execution_Time = max(self.Metrics_Total_Execution_Time,
                                                                     _job.scheduled_time + _job.run_time)
                             self.Metrics_Average_Slow_Down += (_job.scheduled_time - _job.submit_time)
+                            self.Metrics_Average_BSLD += max(1.0,
+                                                             float(_job.scheduled_time - _job.submit_time + _job.run_time)
+                                                             /
+                                                             max(_job.run_time, 10))
                             self.Metrics_Average_Response_Time += (_job.submit_time - _job.submit_time + _job.run_time)
                             self.Metrics_System_Utilization += (_job.run_time * _job.request_number_of_processors)
                             self.job_queue[j] = Job()
@@ -286,11 +310,12 @@ class RLProcessor():
         utilization = float(self.Metrics_System_Utilization) / float(self.cluster.num_procs_per_node *
                                                                      self.cluster.total_node *
                                                                      self.Metrics_Total_Execution_Time)
+        bsld = self.Metrics_Average_BSLD / MAX_JOBS_EACH_BATCH
         average_queue_size = float(self.Metrics_Queue_Length) / float(self.Metrics_Probe_Times)
 
-        return [self.Metrics_Total_Execution_Time, self.Metrics_Average_Slow_Down,
+        return [self.Metrics_Total_Execution_Time, self.Metrics_Average_Slow_Down, bsld,
                 self.Metrics_Average_Response_Time, utilization], self.schedule_logs, average_queue_size
 
 if __name__ == '__main__':
-    rlp = RLProcessor(workload_file="../data/RICC-2010-2.swf", output_file="../data/RICC-RL-500.txt")
+    rlp = RLProcessor(workload_file="../data/RICC-2010-2.swf", output_file="../data/RICC-RL-BSLD-200.txt")
     rlp.pre_process_job_trace()
