@@ -276,66 +276,9 @@ Vanilla Policy Gradient
 
 """
 def hpc_vpg_cont(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
-                 steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=1e-4,
-                 vf_lr=1e-4, train_v_iters=80, lam=0.97, max_ep_len=10000,
+                 steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=1e-5,
+                 vf_lr=1e-5, train_v_iters=100, lam=0.97, max_ep_len=10000,
                  logger_kwargs=dict(), save_freq=10):
-    """
-
-    Args:
-        env_fn : A function which creates a copy of the environment.
-            The environment must satisfy the OpenAI Gym API.
-
-        actor_critic: A function which takes in placeholder symbols
-            for state, ``x_ph``, and action, ``a_ph``, and returns the main
-            outputs from the agent's Tensorflow computation graph:
-
-            ===========  ================  ======================================
-            Symbol       Shape             Description
-            ===========  ================  ======================================
-            ``pi``       (batch, act_dim)  | Samples actions from policy given
-                                           | states.
-            ``logp``     (batch,)          | Gives log probability, according to
-                                           | the policy, of taking actions ``a_ph``
-                                           | in states ``x_ph``.
-            ``logp_pi``  (batch,)          | Gives log probability, according to
-                                           | the policy, of the action sampled by
-                                           | ``pi``.
-            ``v``        (batch,)          | Gives the value estimate for states
-                                           | in ``x_ph``. (Critical: make sure
-                                           | to flatten this!)
-            ===========  ================  ======================================
-
-        ac_kwargs (dict): Any kwargs appropriate for the actor_critic
-            function you provided to VPG.
-
-        seed (int): Seed for random number generators.
-
-        steps_per_epoch (int): Number of steps of interaction (state-action pairs)
-            for the agent and the environment in each epoch.
-
-        epochs (int): Number of epochs of interaction (equivalent to
-            number of policy updates) to perform.
-
-        gamma (float): Discount factor. (Always between 0 and 1.)
-
-        pi_lr (float): Learning rate for policy optimizer.
-
-        vf_lr (float): Learning rate for value function optimizer.
-
-        train_v_iters (int): Number of gradient descent steps to take on
-            value function per epoch.
-
-        lam (float): Lambda for GAE-Lambda. (Always between 0 and 1,
-            close to 1.)
-
-        max_ep_len (int): Maximum length of trajectory / episode / rollout.
-
-        logger_kwargs (dict): Keyword args for EpochLogger.
-
-        save_freq (int): How often (in terms of gap between epochs) to save
-            the current policy and value function.
-
-    """
 
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
@@ -478,7 +421,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=10)
     parser.add_argument('--steps', type=int, default=200000)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-20w-2k-lr-4-1+1-0')
+    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-20w-2k-lr-5-1+1-0')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
