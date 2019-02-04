@@ -473,9 +473,11 @@ class HpcEnvCont(gym.Env):
                 print("SlowDown. RL Agent:", slow_down, "Best of all:", min_slowdown)
 
             if slow_down < min_slowdown:
-                reward = float(min_slowdown + 1) / float(slow_down + 1)  # * average_queue_size
+                #reward = float(min_slowdown + 1) / float(slow_down + 1)  # * average_queue_size
+                reward = 1
             else:
-                reward = - (float(slow_down + 1) / float(min_slowdown + 1))  # punish negative.
+                # reward = - (float(slow_down + 1) / float(min_slowdown + 1))  # punish negative.
+                reward = -1
 
             # reward = float(min_bsld + 1) / float (bsld + 1)
             # if execution_time < min_total:

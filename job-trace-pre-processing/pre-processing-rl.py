@@ -5,8 +5,9 @@ import math
 from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
-MAX_QUEUE_SIZE = 63
+MAX_QUEUE_SIZE = 64
 MAX_JOBS_EACH_BATCH = 200
+NUM_OF_ALGS = 9
 
 class RLProcessor():
 
@@ -41,13 +42,20 @@ class RLProcessor():
                 3: self.largest_job_first,
                 4: self.longest_job_first,
                 5: self.wfp_3,
-                6: self.unicef
+                6: self.unicef,
+                7: self.wfp,
+                8: self.fcsj
         }
 
         print("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs / self.loads.max_nodes)
         self.output_file = output_file
+
+    def wfp(self, job):
+        wait_time = self.current_timestamp - job.submit_time
+        tmp = float(wait_time) / float(job.run_time + 0.0001)
+        return 0 - tmp * job.request_number_of_processors
 
     def wfp_3(self, job):
         wait_time = self.current_timestamp - job.submit_time
@@ -58,11 +66,19 @@ class RLProcessor():
         wait_time = self.current_timestamp - job.submit_time
         if job.job_id == 0:
             return 0
-        round = int(math.ceil(job.request_number_of_processors / 8))*8
-        #print("job:", job, "job request processor", round, "job runtime", job.run_time)
-        return 0 - (float(wait_time)
-                    /
-                    (math.log2(round) * (job.run_time)))
+
+        round = int(math.ceil(job.request_number_of_processors / 8)) * 8
+        if round == 0:
+            round = 8
+
+        t = (math.log2(round) * (job.run_time))
+        if  t == 0:
+            print("job:", job, "job request processor", round, "job runtime", job.run_time)
+            t = (math.log2(round) * (job.run_time + 0.0001))
+        return 0 - (float(wait_time) / t)
+
+    def fcsj(self, job):
+        return job.submit_time / (job.run_time + 0.0001)
 
     def fcfs_priority(self, job):
         return job.submit_time
@@ -121,7 +137,7 @@ class RLProcessor():
                 high_quality = False
                 metrics_dict = {}
 
-                for j in range(0, 7):
+                for j in range(0, NUM_OF_ALGS):
                     metrics_list, s_log, average_queue_size = \
                         self.get_metrics_using_algorithm(j, i, (i + MAX_JOBS_EACH_BATCH))
                     metrics_list.append(average_queue_size)
