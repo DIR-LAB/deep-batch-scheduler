@@ -6,7 +6,7 @@ from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
 MAX_QUEUE_SIZE = 64
-MAX_JOBS_EACH_BATCH = 200
+MAX_JOBS_EACH_BATCH = 64
 NUM_OF_ALGS = 9
 
 class RLProcessor():
@@ -141,7 +141,7 @@ class RLProcessor():
                     metrics_list, s_log, average_queue_size = \
                         self.get_metrics_using_algorithm(j, i, (i + MAX_JOBS_EACH_BATCH))
                     metrics_list.append(average_queue_size)
-                    metrics_list.append(s_log)
+                    # metrics_list.append(s_log)
 
                     metrics_dict[j] = metrics_list
                     # print(j, "-", average_queue_size, end=", ")
@@ -339,5 +339,5 @@ class RLProcessor():
                 self.Metrics_Average_Response_Time, utilization], self.schedule_logs, average_queue_size
 
 if __name__ == '__main__':
-    rlp = RLProcessor(workload_file="../data/RICC-2010-2.swf", output_file="../data/RICC-RL-BSLD-200.txt")
+    rlp = RLProcessor(workload_file="../data/RICC-2010-2.swf", output_file="../data/RICC-RL-BSLD-64.txt")
     rlp.pre_process_job_trace()
