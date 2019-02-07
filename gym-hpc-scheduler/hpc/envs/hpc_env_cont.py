@@ -81,11 +81,11 @@ class HpcEnvCont(gym.Env):
 
         for key, value in self.pre_processed_job_metrics.items():
             for innerkey, innervalue in value.items():
-                if innervalue[-1] > 10:
+                if innervalue[-1] > 1:
                     self.pre_processed_job_list.append(key)
                     break
 
-        print("average queue size > 10", len(self.pre_processed_job_list))
+        print("average queue size > 1", len(self.pre_processed_job_list))
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
