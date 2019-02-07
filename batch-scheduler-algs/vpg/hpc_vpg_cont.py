@@ -5,6 +5,7 @@ import time
 import os
 import scipy.signal
 import hpc
+from resnet import *
 from gym.spaces import Box, Discrete
 from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
@@ -42,8 +43,15 @@ def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
         x = tf.layers.dense(x, units=h, activation=activation)
     return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
 
-def basic_cnn(x_ph):
-    x = tf.reshape(x_ph, shape=[-1, 8, 8, 3])
+def resnet(x_ph, act_dim):
+    '''
+    https://github.com/wenxinxu/resnet-in-tensorflow
+    '''
+    x = tf.reshape(x_ph, shape=[-1, 136, 8, 3])
+    return inference(x, act_dim, num_residual_blocks, reuse=False)
+
+def basic_cnn(x_ph, act_dim):
+    x = tf.reshape(x_ph, shape=[-1, 136, 8, 3])
     conv1 = tf.layers.conv2d(
             inputs=x,
             filters=32,
@@ -82,7 +90,7 @@ def basic_cnn(x_ph):
     )
     return tf.layers.dense(
             inputs=dropout,
-            units=5
+            units=act_dim
     )
 
 
@@ -156,11 +164,23 @@ Policies
 """
 def cnn_categorical_policy(x, a, hidden_sizes, activation, output_activation, action_space):
     act_dim = action_space.n
-    logits = basic_cnn(x)
+    #logits = basic_cnn(x, act_dim)
+    logits = resnet(x, act_dim)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits, 1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
+    return pi, logp, logp_pi
+
+def cnn_gaussian_policy(x, a, hidden_sizes, activation, output_activation, action_space):
+    act_dim = a.shape.as_list()[-1]
+    # mu = basic_cnn(x, act_dim)
+    mu = resnet(x, act_dim)
+    log_std = tf.get_variable(name='log_std', initializer=-0.5*np.ones(act_dim, dtype=np.float32))
+    std = tf.exp(log_std)
+    pi = mu + tf.random_normal(tf.shape(mu)) * std
+    logp = gaussian_likelihood(a, mu, log_std)
+    logp_pi = gaussian_likelihood(pi, mu, log_std)
     return pi, logp, logp_pi
 
 """
@@ -170,7 +190,10 @@ def cnn_actor_critic(x, a, hidden_sizes=(64,64), activation=tf.tanh,
                      output_activation=None, policy=None, action_space=None):
 
     # default policy builder depends on action space
-    policy = cnn_categorical_policy
+    if policy is None and isinstance(action_space, Box):
+        policy = cnn_gaussian_policy
+    elif policy is None and isinstance(action_space, Discrete):
+        policy = cnn_categorical_policy
 
     with tf.variable_scope('pi'):
         pi, logp, logp_pi = policy(x, a, hidden_sizes, activation, output_activation, action_space)
@@ -276,8 +299,8 @@ Vanilla Policy Gradient
 
 """
 def hpc_vpg_cont(env_name, workload_file, rl_metrics_file, actor_critic=mlp_actor_critic, ac_kwargs=dict(), seed=0,
-                 steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=1e-5,
-                 vf_lr=1e-5, train_v_iters=100, lam=0.97, max_ep_len=10000,
+                 steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
+                 vf_lr=1e-5, train_v_iters=80, lam=0.97, max_ep_len=10000,
                  logger_kwargs=dict(), save_freq=10):
 
     logger = EpochLogger(**logger_kwargs)
@@ -413,15 +436,15 @@ if __name__ == '__main__':
     parser.add_argument('--workload', type=str,
                         default='../../data/RICC-2010-2.swf')
     parser.add_argument('--rlmetrics', type=str,
-                        default='../../data/RICC-RL-200.txt')
+                        default='../../data/RICC-RL-BSLD-64.txt')
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=4)
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--cpu', type=int, default=10)
-    parser.add_argument('--steps', type=int, default=200000)
+    parser.add_argument('--cpu', type=int, default=1)
+    parser.add_argument('--steps', type=int, default=20000)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-20w-2k-lr-5-1+1-0')
+    parser.add_argument('--exp_name', type=str, default='hpc-vpg-mlp-cont-2w-2k-lr-4-1+1-0-64steps')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi

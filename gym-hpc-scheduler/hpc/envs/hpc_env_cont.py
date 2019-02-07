@@ -29,7 +29,7 @@ JOB_FEATURES = 3
 MAX_JOBS_EACH_BATCH = 200
 DEBUG = False
 
-SORTING_FACTORS = 6
+SORTING_FACTORS = 18
 
 class HpcEnvCont(gym.Env):
 
@@ -81,7 +81,7 @@ class HpcEnvCont(gym.Env):
 
         for key, value in self.pre_processed_job_metrics.items():
             for innerkey, innervalue in value.items():
-                if innervalue[-1] > 30:
+                if innervalue[-1] > 10:
                     self.pre_processed_job_list.append(key)
                     break
 
@@ -231,22 +231,25 @@ class HpcEnvCont(gym.Env):
     def priority_fn(self, job, action):
         '''
         There are multiple factors we should consider for sorting
+        SORTING_FACTORS
         '''
+        weights_each_factor = int(SORTING_FACTORS / 3)
+
         priority_score = 0.0
         wait_time = self.current_timestamp - job.submit_time
         normalized_wait_time = float(wait_time) / float(MAX_WAIT_TIME)
-        priority_score += normalized_wait_time * action[0]
-        priority_score += normalized_wait_time * normalized_wait_time * action[1]
+        for i in range(0, weights_each_factor):
+            priority_score += (normalized_wait_time ** (i + 1)) * action[i]
 
         request_processors = job.number_of_allocated_processors
         normalized_request_nodes = float(request_processors) / float(self.loads.max_procs)
-        priority_score += normalized_request_nodes * action[2]
-        priority_score += normalized_request_nodes * normalized_request_nodes * action[3]
+        for i in range(0, weights_each_factor):
+            priority_score += (normalized_request_nodes ** (i + 1)) * action[i + weights_each_factor * 1]
 
         request_time = job.request_time
         normalized_request_time = float(request_time) / float(MAX_RUN_TIME)
-        priority_score += normalized_request_time * action[4]
-        priority_score += normalized_request_time * normalized_request_time * action[5]
+        for i in range(0, weights_each_factor):
+            priority_score += (normalized_request_time ** (i + 1)) * action[i + weights_each_factor * 2]
 
         uid = job.user_id
         gid = job.group_id
@@ -453,7 +456,7 @@ class HpcEnvCont(gym.Env):
             max_utilization = 0
 
             for i in range(0, 5):
-                [total_ts, slow_ts, resp_ts, util_ts, _] = self.pre_processed_job_metrics[str(self.start)][str(i)]
+                [total_ts, slow_ts, bsld_ts, resp_ts, util_ts, _] = self.pre_processed_job_metrics[str(self.start)][str(i)]
                 if DEBUG:
                     print("algorithm ", i, " total time: ", total_ts, " slow down: ",
                           slow_ts, " response time: ", resp_ts,
@@ -466,8 +469,8 @@ class HpcEnvCont(gym.Env):
                     min_response = resp_ts
                 if util_ts > max_utilization:
                     max_utilization = util_ts
-                #if bsld_ts < min_bsld:
-                #    min_bsld = bsld_ts
+                if bsld_ts < min_bsld:
+                    min_bsld = bsld_ts
 
             if DEBUG:
                 print("SlowDown. RL Agent:", slow_down, "Best of all:", min_slowdown)
@@ -519,7 +522,7 @@ def demo_scheduler(env):
 if __name__ == '__main__':
     print(os.getcwd())
     env = HpcEnvCont()
-    env.my_init(workload_file = '../../../data/RICC-2010-2.swf', pre_processed_metrics_file="../../../data/RICC-RL-200.txt")
+    env.my_init(workload_file = '../../../data/RICC-2010-2.swf', pre_processed_metrics_file="../../../data/RICC-RL-BSLD-64.txt")
     '''
     for i in range(0, 5):
         ts, _ = env.get_metrics_using_algorithm(i, 12897, 13532)
