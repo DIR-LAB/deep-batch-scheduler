@@ -16,7 +16,7 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 64
+MAX_QUEUE_SIZE = 200
 MAX_MACHINE_SIZE = 1024
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -81,11 +81,11 @@ class HpcEnvCont(gym.Env):
 
         for key, value in self.pre_processed_job_metrics.items():
             for innerkey, innervalue in value.items():
-                if innervalue[-1] > 1:
+                if innervalue[-1] > 30:
                     self.pre_processed_job_list.append(key)
                     break
 
-        print("average queue size > 1", len(self.pre_processed_job_list))
+        print("average queue size > 30", len(self.pre_processed_job_list))
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -456,7 +456,7 @@ class HpcEnvCont(gym.Env):
             max_utilization = 0
 
             for i in range(0, 5):
-                [total_ts, slow_ts, bsld_ts, resp_ts, util_ts, _] = self.pre_processed_job_metrics[str(self.start)][str(i)]
+                [total_ts, slow_ts, resp_ts, util_ts, _] = self.pre_processed_job_metrics[str(self.start)][str(i)]
                 if DEBUG:
                     print("algorithm ", i, " total time: ", total_ts, " slow down: ",
                           slow_ts, " response time: ", resp_ts,
@@ -469,8 +469,8 @@ class HpcEnvCont(gym.Env):
                     min_response = resp_ts
                 if util_ts > max_utilization:
                     max_utilization = util_ts
-                if bsld_ts < min_bsld:
-                    min_bsld = bsld_ts
+                #if bsld_ts < min_bsld:
+                #    min_bsld = bsld_ts
 
             if DEBUG:
                 print("SlowDown. RL Agent:", slow_down, "Best of all:", min_slowdown)

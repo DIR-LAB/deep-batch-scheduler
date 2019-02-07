@@ -436,7 +436,7 @@ if __name__ == '__main__':
     parser.add_argument('--workload', type=str,
                         default='../../data/RICC-2010-2.swf')
     parser.add_argument('--rlmetrics', type=str,
-                        default='../../data/RICC-RL-BSLD-64.txt')
+                        default='../../data/RICC-RL-200.txt')
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=4)
     parser.add_argument('--gamma', type=float, default=1.0)
