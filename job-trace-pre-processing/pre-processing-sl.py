@@ -10,7 +10,7 @@ from hpc.envs.cluster import Machine, Cluster
 MAX_QUEUE_SIZE = 64
 MAX_MACHINE_SIZE = 1024
 
-MAX_JOBS_EACH_BATCH = 200
+MAX_JOBS_EACH_BATCH = 64
 JOB_FEATURES = 3
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -76,8 +76,11 @@ class SLProcessor:
     def build_observation(self, scheduled_job):
         assert scheduled_job.job_id != 0
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
-        vector = np.zeros((sq, sq, JOB_FEATURES), dtype=float)
-        # self.job_queue.sort(key=lambda j: j.job_id)
+        job_queue_row = sq
+        machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
+
+        vector = np.zeros(((job_queue_row + machine_row), sq, JOB_FEATURES), dtype=float)
+        # self.job_queue.sort(key=lambda j: j.request_number_of_processors)
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
@@ -87,31 +90,48 @@ class SLProcessor:
             request_time = job.request_time
             run_time = job.run_time
             # not used for now
-            #user_id = job.user_id
-            #group_id = job.group_id
-            #executable_number = job.executable_number
-            #queue_number = job.queue_number
+            # user_id = job.user_id
+            # group_id = job.group_id
+            # executable_number = job.executable_number
+            # queue_number = job.queue_number
 
             if job.job_id == 0:
                 wait_time = 0
             else:
                 wait_time = self.current_timestamp - submit_time
-            normalized_wait_time = float(wait_time) / float(MAX_WAIT_TIME)
-            normalized_request_time = float(request_time) / float(MAX_RUN_TIME)
-            # normalized_run_time = float(run_time) / float(MAX_RUN_TIME)
-            normalized_request_nodes = float(request_processors) / float(self.loads.max_procs)
+            normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1)
+            # normalized_request_time = min(float(request_time) / float(MAX_RUN_TIME), 1)
+            normalized_run_time = min(float(run_time) / float(MAX_RUN_TIME), 1)
+            normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1)
 
-            vector[int(i / sq), int(i % sq)] = [normalized_wait_time, normalized_request_time, normalized_request_nodes]
+            vector[int(i / sq), int(i % sq)] = [normalized_wait_time, normalized_run_time, normalized_request_nodes]
 
-        cluster_usage = float(self.cluster.free_node) / float(self.cluster.total_node)
-        vector[int (MAX_QUEUE_SIZE / sq), int(MAX_QUEUE_SIZE % sq)] = [cluster_usage, cluster_usage, cluster_usage]
+        for i in range(MAX_QUEUE_SIZE, MAX_QUEUE_SIZE + MAX_MACHINE_SIZE):
+            machine_id = i - MAX_QUEUE_SIZE
+            cpu_avail = 1.0
+            mem_avail = 1.0
+            io_avail = 1.0
+            if self.cluster.all_nodes[machine_id].is_free:
+                cpu_avail = 1.0
+            else:
+                running_job_id = self.cluster.all_nodes[machine_id].running_job_id
+                running_job = None
+                for _j in self.running_jobs:
+                    if _j.job_id == running_job_id:
+                        running_job = _j
+                        break
+
+                reminder = running_job.scheduled_time + running_job.run_time - self.current_timestamp
+                cpu_avail = max(MAX_RUN_TIME - reminder, 0) / MAX_RUN_TIME
+
+            vector[int(i / sq), int(i % sq)] = [cpu_avail, mem_avail, io_avail]
 
         new_index = 0
         for i in range(0, MAX_QUEUE_SIZE):
             if self.job_queue[i].job_id == scheduled_job.job_id:
                 new_index = i
                 break
-        return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1) * JOB_FEATURES]), new_index
+        return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + MAX_MACHINE_SIZE) * JOB_FEATURES]), new_index
 
     def run_scheduler_to_generate_log(self, algorithm_id, f):
         self.cluster.reset()
@@ -145,30 +165,41 @@ class SLProcessor:
 
         while True:
 
-            self.job_queue.sort(key=lambda j: (self.priority_function(j)))
+            all_jobs = list(self.job_queue)
+            all_jobs.sort(key=lambda j: (self.priority_function(j)))
 
             scheduled_jobs_in_step = []
             get_this_job_scheduled = False
 
             # try to schedule all jobs in the queue
             for i in range(0, MAX_QUEUE_SIZE):
-                assert self.job_queue[i].job_id >= 0
+                assert all_jobs[i].job_id >= 0
 
-                if self.job_queue[i].job_id == 0:
+                if all_jobs[i].job_id == 0:
                     continue
 
-                if self.cluster.can_allocated(self.job_queue[i]):
+                job_for_scheduling = None
+                job_for_scheduling_index = -1
+                for idx in range(0, MAX_QUEUE_SIZE):
+                    if self.job_queue[idx].job_id == all_jobs[i].job_id:
+                        job_for_scheduling = self.job_queue[idx]
+                        job_for_scheduling_index = idx
+                        break
+                assert job_for_scheduling is not None
+                assert job_for_scheduling_index != -1
+
+                if self.cluster.can_allocated(job_for_scheduling):
                     # print ("check job", self.job_queue[i])
-                    assert self.job_queue[i].scheduled_time == -1  # this job should never be scheduled before.
-                    self.job_queue[i].scheduled_time = self.current_timestamp
-                    self.job_queue[i].allocated_machines = self.cluster.allocate(self.job_queue[i].job_id,
-                                                                                 self.job_queue[i].request_number_of_processors)
-                    self.running_jobs.append(self.job_queue[i])
-                    self.schedule_logs.append(self.job_queue[i])
-                    scheduled_jobs_in_step.append(self.job_queue[i])
+                    assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+                    job_for_scheduling.scheduled_time = self.current_timestamp
+                    job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                                  job_for_scheduling.request_number_of_processors)
+                    self.running_jobs.append(job_for_scheduling)
+                    self.schedule_logs.append(job_for_scheduling)
+                    scheduled_jobs_in_step.append(job_for_scheduling)
                     get_this_job_scheduled = True
                     # output a training sample
-                    ja, new_idx = self.build_observation(self.job_queue[i])
+                    ja, new_idx = self.build_observation(job_for_scheduling)
                     l = np.squeeze(ja, axis=0).tolist()
                     sample = {}
                     sample['observe'] = l
@@ -180,7 +211,7 @@ class SLProcessor:
                     break
                 else:
                     # if there is no enough resource for current job, try to backfill the jobs behind it
-                    _needed_processors = self.job_queue[i].request_number_of_processors
+                    _needed_processors = job_for_scheduling.request_number_of_processors
                     _expected_start_time = self.current_timestamp
                     _extra_released_processors = 0
 
@@ -196,7 +227,7 @@ class SLProcessor:
                     assert _released_resources >= _needed_processors
 
                     # find do we have later jobs that do not affect the _expected_start_time
-                    for j in range(i + 1, MAX_QUEUE_SIZE):
+                    for j in range(0, MAX_QUEUE_SIZE):
                         _schedule_it = False
                         _job = self.job_queue[j]
                         if _job.job_id == 0:
@@ -272,5 +303,5 @@ class SLProcessor:
 
 if __name__ == '__main__':
     slp = SLProcessor(workload_file="../data/RICC-2010-2.swf")
-    with open("../data/RICC-SL-Shortest-JF.txt", 'w') as f:
+    with open("../data/RICC-SL-Shortest.txt", 'w') as f:
         slp.run_scheduler_to_generate_log(2, f)
