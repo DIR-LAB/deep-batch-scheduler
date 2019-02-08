@@ -204,9 +204,10 @@ class SLProcessor:
                     sample = {}
                     sample['observe'] = l
                     sample['label'] = new_idx
-                    sample_json.append(sample)
-                    print(len(sample_json))
-                    sample_cnt += 1
+                    #sample_json.append(sample)
+                    #print(len(sample_json))
+                    json.dump(sample, f)
+                    f.write('\n')
                     self.job_queue[new_idx] = Job()  # remove the job from job queue
                     break
                 else:
@@ -299,7 +300,7 @@ class SLProcessor:
             if done:
                 break
 
-        json.dump(sample_json, f)
+        #json.dump(sample_json, f)
 
 if __name__ == '__main__':
     slp = SLProcessor(workload_file="../data/RICC-2010-2.swf")
