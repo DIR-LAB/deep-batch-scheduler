@@ -6,7 +6,7 @@ import json
 from random import shuffle
 
 def basic_cnn(x_ph):
-    x = tf.reshape(x_ph, shape=[-1, 8, 8, 3])
+    x = tf.reshape(x_ph, shape=[-1, 136, 8, 3])
     conv1 = tf.layers.conv2d(
             inputs=x,
             filters=32,
@@ -50,66 +50,66 @@ def basic_cnn(x_ph):
 
 if __name__ == '__main__':
 
-	x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 192))
-	a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
-	act_dim = 64
-	logits = basic_cnn(x_ph)
-	# labels = tf.one_hot(a_ph, depth=act_dim)
-	loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
-	optimizer = tf.train.AdamOptimizer(learning_rate=0.0001)
-	train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
+    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 3264))
+    a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
+    act_dim = 64
+    logits = basic_cnn(x_ph)
+    # labels = tf.one_hot(a_ph, depth=act_dim)
+    loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.0001)
+    train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
 
-	input = []
-	label = []
-	sample_cnt = 0
-	training_samples = ".../deep-batch-scheduler/data/RICC-SL-Shortest-JF.txt"
-	with open(training_samples, 'r') as f:
-	    sample_json =  json.load(f)
+    input = []
+    label = []
+    sample_cnt = 0
+    training_samples = ".../deep-batch-scheduler/data/RICC-SL-Shortest.txt"
+    with open(training_samples, 'r') as f:
+        sample_json =  json.load(f)
 
-	shuffle(sample_json)
-	for sample in sample_json:
-	    input.append(sample['observe'])
-	    label.append(sample['label'])
+    shuffle(sample_json)
+    for sample in sample_json:
+        input.append(sample['observe'])
+        label.append(sample['label'])
 
-	N_train = int(len(sample_json)*0.8)
-	sample_cnt = N_train
-	feature_train = input[:N_train]
-	feature_test = input[N_train:]
-	label_train = label[:N_train]
-	label_test = label[N_train:]
+    N_train = int(len(sample_json)*0.8)
+    sample_cnt = N_train
+    feature_train = input[:N_train]
+    feature_test = input[N_train:]
+    label_train = label[:N_train]
+    label_test = label[N_train:]
 
-	index = 0
-	batch_size = 100
-	hm_epoch = 10
+    index = 0
+    batch_size = 100
+    hm_epoch = 10
 
-	def next_batch(index, batch_size):
-		if index + batch_size > sample_cnt:
-		    x = np.array(feature_train[index:])
-		    y = np.array(label_train[index:])
-		    index = -1
-		else:
-		    x = np.array(feature_train[index:index+batch_size+1])
-		    y = np.array(label_train[index:index+batch_size+1])
-		    index += batch_size
-		return x, y, index
+    def next_batch(index, batch_size):
+        if index + batch_size > sample_cnt:
+            x = np.array(feature_train[index:])
+            y = np.array(label_train[index:])
+            index = -1
+        else:
+            x = np.array(feature_train[index:index+batch_size+1])
+            y = np.array(label_train[index:index+batch_size+1])
+            index += batch_size
+        return x, y, index
 
-	# x, y, index = next_batch(index, batch_size)
-	with tf.Session() as sess:
-	    sess.run(tf.global_variables_initializer())
-	    for epoch in range(hm_epoch):
-	        epoch_loss = 0
-	        index = 0
-	        while index!=-1:
-	            epoch_x, epoch_y, index = next_batch(index, batch_size)
-	            _, c = sess.run([train_op, loss], feed_dict={x_ph: epoch_x, a_ph: epoch_y})
-	            epoch_loss += c
-	        print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
-	        
-	        
-	    # Evaluation
-	    y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
-	    pred = tf.nn.softmax(logits)  # Apply softmax to logits
-	    correct_prediction = tf.equal(tf.argmax(pred, 1), y_test)
-	    # Calculate accuracy
-	    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-	    print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}))
+    # x, y, index = next_batch(index, batch_size)
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for epoch in range(hm_epoch):
+            epoch_loss = 0
+            index = 0
+            while index!=-1:
+                epoch_x, epoch_y, index = next_batch(index, batch_size)
+                _, c = sess.run([train_op, loss], feed_dict={x_ph: epoch_x, a_ph: epoch_y})
+                epoch_loss += c
+            print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
+
+
+        # Evaluation
+        y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
+        pred = tf.nn.softmax(logits)  # Apply softmax to logits
+        correct_prediction = tf.equal(tf.argmax(pred, 1), y_test)
+        # Calculate accuracy
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+        print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}))
