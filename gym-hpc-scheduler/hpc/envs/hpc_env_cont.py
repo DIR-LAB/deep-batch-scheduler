@@ -26,7 +26,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 # submit_time, request_number_of_processors, request_time,
 # user_id, group_id, executable_number, queue_number
 JOB_FEATURES = 3
-MAX_JOBS_EACH_BATCH = 200
+MAX_JOBS_EACH_BATCH = 64
 DEBUG = False
 
 SORTING_FACTORS = 18

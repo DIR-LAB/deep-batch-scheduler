@@ -7,7 +7,9 @@ import numpy as np
 from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
-MAX_QUEUE_SIZE = 63
+MAX_QUEUE_SIZE = 64
+MAX_MACHINE_SIZE = 1024
+
 MAX_JOBS_EACH_BATCH = 200
 JOB_FEATURES = 3
 
