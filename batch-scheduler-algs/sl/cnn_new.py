@@ -62,10 +62,18 @@ if __name__ == '__main__':
     input = []
     label = []
     sample_cnt = 0
-    training_samples = "/Users/ddai/Documents/tensorflow-study/deep-batch-scheduler/data/RICC-SL-Shortest.txt"
+    training_samples = "../../data/RICC-SL-Shortest.txt"
+    sample_json = []
+    line_num = 1000
     with open(training_samples, 'r') as f:
-        sample_json = json.load(f)
+        for line in f:
+            one_sample = json.loads(line)
+            sample_json.append(one_sample)
+            line_num -= 1
+            if line_num <= 0:
+                break
 
+    print (len(sample_json))
     shuffle(sample_json)
     for sample in sample_json:
         input.append(sample['observe'])
@@ -88,8 +96,8 @@ if __name__ == '__main__':
             y = np.array(label_train[index:])
             index = -1
         else:
-            x = np.array(feature_train[index:index+batch_size+1])
-            y = np.array(label_train[index:index+batch_size+1])
+            x = np.array(feature_train[index:index+batch_size])
+            y = np.array(label_train[index:index+batch_size])
             index += batch_size
         return x, y, index
 
@@ -101,6 +109,7 @@ if __name__ == '__main__':
             index = 0
             while index!=-1:
                 epoch_x, epoch_y, index = next_batch(index, batch_size)
+                print (len(epoch_x), len(epoch_y))
                 _, c = sess.run([train_op, loss], feed_dict={x_ph: epoch_x, a_ph: epoch_y})
                 epoch_loss += c
             print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
