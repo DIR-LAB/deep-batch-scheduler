@@ -62,9 +62,9 @@ if __name__ == '__main__':
     input = []
     label = []
     sample_cnt = 0
-    training_samples = ".../deep-batch-scheduler/data/RICC-SL-Shortest.txt"
+    training_samples = "/Users/ddai/Documents/tensorflow-study/deep-batch-scheduler/data/RICC-SL-Shortest.txt"
     with open(training_samples, 'r') as f:
-        sample_json =  json.load(f)
+        sample_json = json.load(f)
 
     shuffle(sample_json)
     for sample in sample_json:
