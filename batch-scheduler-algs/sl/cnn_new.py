@@ -64,14 +64,10 @@ if __name__ == '__main__':
     sample_cnt = 0
     training_samples = "../../data/RICC-SL-Shortest.txt"
     sample_json = []
-    line_num = 1000
     with open(training_samples, 'r') as f:
         for line in f:
             one_sample = json.loads(line)
             sample_json.append(one_sample)
-            line_num -= 1
-            if line_num <= 0:
-                break
 
     print (len(sample_json))
     shuffle(sample_json)
