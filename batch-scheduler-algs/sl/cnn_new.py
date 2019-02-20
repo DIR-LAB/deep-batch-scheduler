@@ -33,7 +33,7 @@ def basic_cnn(x_ph):
             pool_size=[2, 2],
             strides=2
     )
-    flat = tf.reshape(pool2, [-1, 2 * 2 * 64])
+    flat = tf.reshape(pool2, [-1, 34 * 2 * 64])
     dense = tf.layers.dense(
             inputs=flat,
             units=1024,
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     logits = basic_cnn(x_ph)
     # labels = tf.one_hot(a_ph, depth=act_dim)
     loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.0001)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
     train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
 
     input = []
@@ -66,10 +66,13 @@ if __name__ == '__main__':
     sample_json = []
     with open(training_samples, 'r') as f:
         for line in f:
-            one_sample = json.loads(line)
-            sample_json.append(one_sample)
+        	try:
+            	one_sample = json.loads(line)
+            	sample_json.append(one_sample)
+            except:
+            	pass
 
-    print (len(sample_json))
+    # print (len(sample_json))
     shuffle(sample_json)
     for sample in sample_json:
         input.append(sample['observe'])
@@ -105,7 +108,7 @@ if __name__ == '__main__':
             index = 0
             while index!=-1:
                 epoch_x, epoch_y, index = next_batch(index, batch_size)
-                print (len(epoch_x), len(epoch_y))
+                # print (len(epoch_x), len(epoch_y))
                 _, c = sess.run([train_op, loss], feed_dict={x_ph: epoch_x, a_ph: epoch_y})
                 epoch_loss += c
             print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
