@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-
+import csv
 import json
 
 from random import shuffle
@@ -66,11 +66,11 @@ if __name__ == '__main__':
     sample_json = []
     with open(training_samples, 'r') as f:
         for line in f:
-        	try:
-            	one_sample = json.loads(line)
-            	sample_json.append(one_sample)
+            try:
+                one_sample = json.loads(line)
+                sample_json.append(one_sample)
             except:
-            	pass
+                pass
 
     # print (len(sample_json))
     shuffle(sample_json)
@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
     index = 0
     batch_size = 100
-    hm_epoch = 10
+    hm_epoch = 50
 
     def next_batch(index, batch_size):
         if index + batch_size > sample_cnt:
@@ -117,7 +117,18 @@ if __name__ == '__main__':
         # Evaluation
         y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
         pred = tf.nn.softmax(logits)  # Apply softmax to logits
-        correct_prediction = tf.equal(tf.argmax(pred, 1), y_test)
+        prediction = tf.argmax(pred, 1)
+        correct_prediction = tf.equal(prediction, y_test)
+
         # Calculate accuracy
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
         print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}))
+        pred_save = prediction.eval({x_ph: feature_test, y_test: label_test})
+
+
+    with open('label.csv', 'w') as csvf:
+        writer = csv.writer(csvf)
+        writer.writerow(label_test)
+    with open('predict.csv', 'w') as csvf:
+        writer = csv.writer(csvf)
+        writer.writerow(pred_save.tolist())
