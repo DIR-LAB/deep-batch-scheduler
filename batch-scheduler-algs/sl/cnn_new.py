@@ -272,8 +272,8 @@ if __name__ == '__main__':
     x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 3264))
     a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
     act_dim = 64
-    # logits = basic_cnn(x_ph)
-    logits = resnet(x_ph)
+    logits = basic_cnn(x_ph)
+    # logits = resnet(x_ph)
     # labels = tf.one_hot(a_ph, depth=act_dim)
     loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
     optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
@@ -282,7 +282,7 @@ if __name__ == '__main__':
     input = []
     label = []
     sample_cnt = 0
-    training_samples = "./data/RICC-SL-Shortest.txt"
+    training_samples = "../../data/RICC-SL-Shortest.txt"
     sample_json = []
     with open(training_samples, 'r') as f:
         for line in f:

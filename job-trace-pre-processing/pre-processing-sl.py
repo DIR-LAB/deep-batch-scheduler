@@ -80,10 +80,15 @@ class SLProcessor:
         machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
 
         vector = np.zeros(((job_queue_row + machine_row), sq, JOB_FEATURES), dtype=float)
-        # self.job_queue.sort(key=lambda j: j.request_number_of_processors)
+
+        # @for sorted case: make sure we sort the queue before generating the observation.
+        # priority_function = self.scheduler_algs.get(2)  # 2 is the shortest
+        # local_all_jobs = list(self.job_queue)
+        # local_all_jobs.sort(key=lambda j: (priority_function(j)))
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
+            # job = local_all_jobs[i]
 
             submit_time = job.submit_time
             request_processors = job.request_number_of_processors
@@ -187,6 +192,7 @@ class SLProcessor:
                         break
                 assert job_for_scheduling is not None
                 assert job_for_scheduling_index != -1
+                print("job for scheduling: ", job_for_scheduling, "index", job_for_scheduling_index)
 
                 if self.cluster.can_allocated(job_for_scheduling):
                     # print ("check job", self.job_queue[i])
