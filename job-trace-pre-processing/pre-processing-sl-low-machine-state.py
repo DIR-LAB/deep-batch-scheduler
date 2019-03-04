@@ -7,7 +7,7 @@ import numpy as np
 from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
-MAX_QUEUE_SIZE = 64
+MAX_QUEUE_SIZE = 63
 MAX_MACHINE_SIZE = 1024
 
 MAX_JOBS_EACH_BATCH = 64
@@ -16,7 +16,9 @@ JOB_FEATURES = 3
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
+
 class SLProcessor:
+
     def __init__(self, workload_file):
         self.job_queue = []
         for i in range(0, MAX_QUEUE_SIZE):
@@ -77,9 +79,8 @@ class SLProcessor:
         assert scheduled_job.job_id != 0
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
         job_queue_row = sq
-        machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
 
-        vector = np.zeros(((job_queue_row + machine_row), sq, JOB_FEATURES), dtype=float)
+        vector = np.zeros((job_queue_row, sq, JOB_FEATURES), dtype=float)
 
         # @for sorted case: make sure we sort the queue before generating the observation.
         # priority_function = self.scheduler_algs.get(2)  # 2 is the shortest
@@ -111,32 +112,29 @@ class SLProcessor:
 
             vector[int(i / sq), int(i % sq)] = [normalized_wait_time, normalized_run_time, normalized_request_nodes]
 
-        for i in range(MAX_QUEUE_SIZE, MAX_QUEUE_SIZE + MAX_MACHINE_SIZE):
-            machine_id = i - MAX_QUEUE_SIZE
-            cpu_avail = 1.0
-            mem_avail = 1.0
-            io_avail = 1.0
-            if self.cluster.all_nodes[machine_id].is_free:
-                cpu_avail = 1.0
+        for i in range(0, MAX_MACHINE_SIZE):
+            cpu_avail = 0.0
+            if self.cluster.all_nodes[i].is_free:
+                cpu_avail += 1.0
             else:
-                running_job_id = self.cluster.all_nodes[machine_id].running_job_id
+                running_job_id = self.cluster.all_nodes[i].running_job_id
                 running_job = None
                 for _j in self.running_jobs:
                     if _j.job_id == running_job_id:
                         running_job = _j
                         break
 
-                reminder = running_job.scheduled_time + running_job.run_time - self.current_timestamp
-                cpu_avail = max(MAX_RUN_TIME - reminder, 0) / MAX_RUN_TIME
+                remainded = running_job.scheduled_time + running_job.run_time - self.current_timestamp
+                cpu_avail += max(MAX_RUN_TIME - remainded, 0) / MAX_RUN_TIME
 
-            vector[int(i / sq), int(i % sq)] = [cpu_avail, mem_avail, io_avail]
+        vector[int(MAX_QUEUE_SIZE / sq), int(MAX_QUEUE_SIZE % sq)] = [(cpu_avail / MAX_MACHINE_SIZE), 0, 0]
 
         new_index = 0
         for i in range(0, MAX_QUEUE_SIZE):
             if self.job_queue[i].job_id == scheduled_job.job_id:
                 new_index = i
                 break
-        return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + MAX_MACHINE_SIZE) * JOB_FEATURES]), new_index
+        return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1) * JOB_FEATURES]), new_index
 
     def run_scheduler_to_generate_log(self, algorithm_id, f):
         self.cluster.reset()
@@ -310,12 +308,12 @@ class SLProcessor:
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print("Usage: python pre-processing-sl.py input-workload-path output-training-file-path")
+        print("Usage: python pre-processing-sl-low-machine-state.py input-workload-path output-training-file-path")
         sys.exit()
     # ../data/RICC-2010-2.swf
     workload_file = sys.argv[1]
 
-    # ../data/RICC-SL-Shortest.txt
+    # ../data/RICC-SL-Low.txt
     output_file = sys.argv[2]
 
     slp = SLProcessor(workload_file=workload_file)
