@@ -333,7 +333,6 @@ if __name__ == '__main__':
                 epoch_loss += c
             print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
 
-
         # Evaluation
         y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
         pred = tf.nn.softmax(logits)  # Apply softmax to logits
