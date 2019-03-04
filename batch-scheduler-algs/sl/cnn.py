@@ -58,7 +58,7 @@ if __name__ == '__main__':
         print("Usage: python cnn.py training-data-path ouput-dir")
         sys.exit()
 
-    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 64))
+    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 192))
     a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
     act_dim = 64
     logits = basic_cnn(x_ph)
