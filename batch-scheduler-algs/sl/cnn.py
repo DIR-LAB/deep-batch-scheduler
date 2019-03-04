@@ -62,8 +62,8 @@ if __name__ == '__main__':
     a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
     act_dim = 64
     logits = basic_cnn(x_ph)
-    labels = tf.one_hot(a_ph, depth=act_dim)
-    loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
+    # labels = tf.one_hot(a_ph, depth=act_dim)
+    loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
     optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
     train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
 
