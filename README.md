@@ -53,40 +53,34 @@ git clone git@github.com:DIR-LAB/deep-batch-scheduler.git
 
 ### On Ubuntu 16.04 with Tesla GPUs 
 
-查看这一页：https://gist.github.com/zhanwenchen/e520767a409325d9961072f666815bb8
+Reference：https://gist.github.com/zhanwenchen/e520767a409325d9961072f666815bb8
 
-查看是否安装好driver
+Check whether the driver has been installed
 ```
 nvidia-smi
 ```
 
-安装Nvidia Modprobe
+If not, install Nvidia Drivers
+1. install Nvidia Modprobe
 ```bash
 sudo apt-add-repository multiverse
 sudo apt update
 sudo apt install nvidia-modprobe
 ```
 
-增加Nvidia的repo
+install driver via Nvidia repo
 ```bash
 sudo add-apt-repository ppa:graphics-drivers/ppa
 sudo apt update
 sudo apt install nvidia-387
 ```
 
-安装CUDA和cuDNN
+install CUDA and cuDNN
 https://gist.github.com/wangruohui/df039f0dc434d6486f5d4d098aa52d07
 
-Spinningup会安装Tensorflow。覆盖掉之前安装的Tensorflow-GPU.
+Note that, Spinningup will install Tensorflow。This may overwrite previously installed Tensorflow-GPU.
 
-16.04 安装 Python3.6
-```
-sudo add-apt-repository ppa:jonathonf/python-3.6
-sudo apt-get update
-sudo apt-get install python3.6
-```
-
-判断Tensorflow是不是在使用GPU
+Determine whether your Tensorflow is using GPU:
 ```
 sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
