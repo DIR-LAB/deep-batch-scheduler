@@ -2,6 +2,9 @@ import tensorflow as tf
 import numpy as np
 import csv
 import json
+import sys
+import os
+
 
 from random import shuffle
 
@@ -269,6 +272,10 @@ def basic_cnn(x_ph):
 
 if __name__ == '__main__':
 
+    if len(sys.argv) != 3:
+        print("Usage: python cnn_new.py training-data-path ouput-dir")
+        sys.exit()
+
     x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 3264))
     a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
     act_dim = 64
@@ -282,7 +289,8 @@ if __name__ == '__main__':
     input = []
     label = []
     sample_cnt = 0
-    training_samples = "../../data/RICC-SL-Shortest.txt"
+    # "../../data/RICC-SL-Shortest.txt"
+    training_samples = sys.argv[1]
     sample_json = []
     with open(training_samples, 'r') as f:
         for line in f:
@@ -344,10 +352,12 @@ if __name__ == '__main__':
         print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}))
         pred_save = prediction.eval({x_ph: feature_test, y_test: label_test})
 
-
-    with open('label.csv', 'w') as csvf:
+    output_dir = sys.argv[2]
+    label_file = os.path.join(output_dir, "label.csv")
+    predict_file = os.path.join(output_dir, "predict.csv")
+    with open(label_file, 'w') as csvf:
         writer = csv.writer(csvf)
         writer.writerow(label_test)
-    with open('predict.csv', 'w') as csvf:
+    with open(predict_file, 'w') as csvf:
         writer = csv.writer(csvf)
         writer.writerow(pred_save.tolist())
