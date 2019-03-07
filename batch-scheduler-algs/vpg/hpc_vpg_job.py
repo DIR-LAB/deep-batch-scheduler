@@ -264,8 +264,8 @@ def basic_cnn(x_ph, act_dim):
     job_queue_row = sq
     machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
     print("Basic CNN, input dim:[%d, %d, %d]" % ((job_queue_row + machine_row), sq, JOB_FEATURES))
-    x = tf.reshape(x_ph, shape=[-1, (job_queue_row + machine_row), sq, JOB_FEATURES])
 
+    x = tf.reshape(x_ph, shape=[-1, (job_queue_row + machine_row), sq, JOB_FEATURES])
     conv1 = tf.layers.conv2d(
             inputs=x,
             filters=32,
@@ -292,7 +292,7 @@ def basic_cnn(x_ph, act_dim):
             pool_size=[2, 2],
             strides=2
     )
-    flat = tf.reshape(pool2, [-1, 2 * 2 * 64])
+    flat = tf.reshape(pool2, [-1, 34 * 2 * 64])
     dense = tf.layers.dense(
             inputs=flat,
             units=1024,
@@ -329,8 +329,8 @@ def discount_cumsum(x, discount):
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    # logits = basic_cnn(x, act_dim)
-    logits = mlp(x, list((64,64))+[act_dim], tf.tanh, None)
+    logits = basic_cnn(x, act_dim)
+    # logits = mlp(x, list((64,64))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     # logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
@@ -341,8 +341,8 @@ def actor_critic(x, a, action_space):
     with tf.variable_scope('pi'):
         logits, logp_all, logp = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        v = tf.squeeze(mlp(x, list((64, 64))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        # v = tf.squeeze(mlp(x, list((64, 64))+[1], tf.tanh, None), axis=1)
     return logits, logp_all, logp, v
 
 
@@ -505,8 +505,9 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     start_time = time.time()
     o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
 
-    def get_legal_action():
-        if np.random.rand() < explore_rate:
+    def get_legal_action(interactions):
+        rate = math.ceil((interactions + 1) / 100000) # reduce the exporation rate every 100K interactions.
+        if np.random.rand() < (explore_rate / rate):
             while True:
                 action = np.random.randint(0, MAX_QUEUE_SIZE)
                 if action_is_legal(action):
@@ -530,7 +531,7 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
             logits_t, logp_all_t, v_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
-            a, logp_t = get_legal_action()
+            a, logp_t = get_legal_action((epoch + 1) * steps_per_epoch)
             # print ("logits_t:", logits_t[0], "action:", a)
             # save and log
             buf.store(o, a, r, v_t, logp_t)
@@ -586,7 +587,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=4000)
     parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--exp_name', type=str, default='hpc-cnn')
+    parser.add_argument('--exp_name', type=str, default='hpc-cnn-1')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
