@@ -11,7 +11,7 @@ NUM_OF_ALGS = 9
 
 class RLProcessor():
 
-    def __init__(self, workload_file, output_file):
+    def __init__(self, workload_file, output_file, name):
         self.job_queue = []
         for i in range(0, MAX_QUEUE_SIZE):
             self.job_queue.append(Job())
@@ -49,7 +49,7 @@ class RLProcessor():
 
         print("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
-        self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs / self.loads.max_nodes)
+        self.cluster = Cluster(name, self.loads.max_nodes, self.loads.max_procs / self.loads.max_nodes)
         self.output_file = output_file
 
     def wfp(self, job):
@@ -67,14 +67,13 @@ class RLProcessor():
         if job.job_id == 0:
             return 0
 
-        round = int(math.ceil(job.request_number_of_processors / 8)) * 8
-        if round == 0:
-            round = 8
-
-        t = (math.log2(round) * (job.run_time))
-        if  t == 0:
-            print("job:", job, "job request processor", round, "job runtime", job.run_time)
-            t = (math.log2(round) * (job.run_time + 0.0001))
+        round = job.request_number_of_processors
+        # because not all clusters have 8 processors per node. Many cases, we can just use number_of_processor to
+        # do all the calculation.
+        # round = int(math.ceil(job.request_number_of_processors / 8)) * 8
+        # if round == 0:
+        #     round = 8
+        t = (math.log2(round + 0.0001) * (job.run_time + 0.0001))
         return 0 - (float(wait_time) / t)
 
     def fcsj(self, job):
@@ -109,7 +108,7 @@ class RLProcessor():
         return size
 
     def pre_process_job_trace(self):
-        """ We preprocess all the jobs, eliminating the job sequence that will not change the scheduling decisions.
+        """ We pre-process all the jobs, eliminating the job sequence that will not change the scheduling decisions.
         Metrics: if no matter which scheduling algorithm is used, most of the time, job queue will only have one
         job, this is really not the case for our agent to get any meaningful information and they shall be eliminated.
         Also, calculate what the existing algorithms can do, so that we do not need to re-calculate again.
@@ -124,6 +123,7 @@ class RLProcessor():
                 2:[metrics], //short
                 3:[metrics], //large
                 4:[metrics], //long
+                ...
                 }, 
                 ...
             }
@@ -145,13 +145,13 @@ class RLProcessor():
 
                     metrics_dict[j] = metrics_list
                     # print(j, "-", average_queue_size, end=", ")
-                    if average_queue_size > 2:
+                    if average_queue_size > 0:
                         high_quality = True
 
                 if high_quality:
                     out_dict[i] = metrics_dict
-                    print("dict size,", len(out_dict))
-                print("Process", i, "as high/low quality sequence", high_quality)
+                    # print("dict size,", len(out_dict))
+                    print("Process", i, "as high quality sequence")
 
             print ("Size of high quality sequences:", len(out_dict))
             json.dump(out_dict, f)
@@ -338,6 +338,14 @@ class RLProcessor():
         return [self.Metrics_Total_Execution_Time, self.Metrics_Average_Slow_Down, bsld,
                 self.Metrics_Average_Response_Time, utilization], self.schedule_logs, average_queue_size
 
+
 if __name__ == '__main__':
-    rlp = RLProcessor(workload_file="../data/RICC-2010-2.swf", output_file="../data/RICC-RL-BSLD-64.txt")
+    if len(sys.argv) != 4:
+        print("Usage: python pre-processing-rl.py workload-file output-file cluster-name")
+        sys.exit()
+    workload_file = sys.argv[1]
+    output_file = sys.argv[2]
+    cluster_name = sys.argv[3]
+
+    rlp = RLProcessor(workload_file=workload_file, output_file=output_file, name=cluster_name)
     rlp.pre_process_job_trace()

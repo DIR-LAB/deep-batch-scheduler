@@ -317,6 +317,9 @@ if __name__ == '__main__':
             index += batch_size
         return x, y, index
 
+    # Add ops to save and restore all the variables.
+    saver = tf.train.Saver()
+    output_dir = sys.argv[2]
 
     # x, y, index = next_batch(index, batch_size)
     with tf.Session() as sess:
@@ -342,7 +345,10 @@ if __name__ == '__main__':
         print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}))
         pred_save = prediction.eval({x_ph: feature_test, y_test: label_test})
 
-    output_dir = sys.argv[2]
+        model_file = os.path.join(output_dir, "nn")
+        save_path = saver.save(sess, model_file)
+        print("Model saved in path: %s" % save_path)
+
     label_file = os.path.join(output_dir, "label.csv")
     predict_file = os.path.join(output_dir, "predict.csv")
     with open(label_file, 'w') as csvf:

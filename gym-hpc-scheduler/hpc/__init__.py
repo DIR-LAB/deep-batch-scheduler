@@ -9,3 +9,8 @@ register(
         id='Scheduler-cont-v0',
         entry_point='hpc.envs:HpcEnvCont',
 )
+
+register(
+        id='Scheduler-v1',
+        entry_point='hpc.envs:HpcEnvJob',
+)

@@ -8,7 +8,6 @@ import numpy as np
 import tensorflow as tf
 
 BN_EPSILON = 0.001
-
 weight_decay = 0.0002  # scale for l2 regularization
 num_residual_blocks = 5 # How many residual blocks do you want
 
