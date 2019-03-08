@@ -330,7 +330,7 @@ def discount_cumsum(x, discount):
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
     logits = basic_cnn(x, act_dim)
-    # logits = mlp(x, list((64,64))+[act_dim], tf.tanh, None)
+    # logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     # logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
@@ -342,7 +342,7 @@ def actor_critic(x, a, action_space):
         logits, logp_all, logp = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
         v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        # v = tf.squeeze(mlp(x, list((64, 64))+[1], tf.tanh, None), axis=1)
+        # v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
     return logits, logp_all, logp, v
 
 
@@ -428,7 +428,6 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
 
-    seed += 10000 * proc_id()
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
@@ -520,10 +519,10 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
                 if action_is_legal(action):
                     return action, logp_all_t[0][action]
                 else:
-                    logits_t[0][action] = -10
+                    logits_t[0][action] = (np.amin(logits_t[0]) - 1)
                 # print("find action")
                 if times > 128:
-                    print("logits_t[0]:", logits[0])
+                    print("logits_t[0]:", logits_t[0])
 
     def action_is_legal(action):
         if all(o[0][action * JOB_FEATURES: (action + 1) * JOB_FEATURES] == 0):
