@@ -507,6 +507,7 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
 
     def get_legal_action(interactions):
         rate = math.ceil((interactions + 1) / 100000) # reduce the exporation rate every 100K interactions.
+        times = 0
         if np.random.rand() < (explore_rate / rate):
             while True:
                 action = np.random.randint(0, MAX_QUEUE_SIZE)
@@ -514,12 +515,15 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
                     return action, logp_all_t[0][action]
         else:
             while True:
+                times += 1
                 action = np.argmax(logits_t[0])
                 if action_is_legal(action):
                     return action, logp_all_t[0][action]
                 else:
                     logits_t[0][action] = -10
                 # print("find action")
+                if times > 128:
+                    print("logits_t[0]:", logits[0])
 
     def action_is_legal(action):
         if all(o[0][action * JOB_FEATURES: (action + 1) * JOB_FEATURES] == 0):
