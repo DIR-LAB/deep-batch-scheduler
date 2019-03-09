@@ -329,8 +329,8 @@ def discount_cumsum(x, discount):
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    # logits = basic_cnn(x, act_dim)
-    logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
+    logits = basic_cnn(x, act_dim)
+    # logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     # logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
@@ -341,8 +341,8 @@ def actor_critic(x, a, action_space):
     with tf.variable_scope('pi'):
         logits, logp_all, logp = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        # v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
     return logits, logp_all, logp, v
 
 
