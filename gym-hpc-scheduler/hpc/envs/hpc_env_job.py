@@ -88,6 +88,27 @@ class HpcEnvJob(gym.Env):
         self.job_queue[0] = self.loads[self.start]
         self.next_arriving_job_idx = self.start + 1
 
+        # Generate some running jobs to randomly fill the cluster.
+        q_workloads = []
+        running_job_size = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)  # size of running jobs.
+        for i in range(running_job_size):
+            req_num_of_processors = random.randint(1, self.loads.max_procs)  # random number of requests
+            runtime_of_job = random.randint(self.loads.min_exec_time, self.loads.max_exec_time)  # random execution time
+            job_tmp = Job()
+            job_tmp.job_id = (-1 - i)  # to be different from the normal jobs; normal jobs have a job_id >= 0
+            job_tmp.request_number_of_processors = req_num_of_processors
+            job_tmp.run_time = runtime_of_job
+            if self.cluster.can_allocated(job_tmp):
+                self.running_jobs.append(job_tmp)
+                # assume job was randomly generated
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                if DEBUG:
+                    print("In reset, allocate for job, ", job_tmp, " with free nodes: ", self.cluster.free_node)
+                job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
+                q_workloads.append(job_tmp)
+            else:
+                break
+
         # schedule the sequence of jobs using FCFS. This would be the standard references for this sequence.
         self.bsld_fcfs_dict = {}
         while True:
@@ -215,6 +236,11 @@ class HpcEnvJob(gym.Env):
         self.job_queue[0] = self.loads[self.start]
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.next_arriving_job_idx = self.start + 1
+
+        # use the same jobs to fill the cluster.
+        for job_tmp in q_workloads:
+            self.running_jobs.append(job_tmp)
+            job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
 
         if DEBUG:
             print("Reset:%s, %d, %s" %

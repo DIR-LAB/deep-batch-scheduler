@@ -329,8 +329,8 @@ def discount_cumsum(x, discount):
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    logits = basic_cnn(x, act_dim)
-    # logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
+    # logits = basic_cnn(x, act_dim)
+    logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     # logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
@@ -341,8 +341,8 @@ def actor_critic(x, a, action_space):
     with tf.variable_scope('pi'):
         logits, logp_all, logp = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        # v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
+        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
     return logits, logp_all, logp, v
 
 
@@ -422,7 +422,7 @@ class VPGBuffer:
 
 def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
             steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
-            vf_lr=1e-3, train_v_iters=80, lam=0.97, max_ep_len=10000,
+            vf_lr=1e-3, train_v_iters=20, lam=0.97, max_ep_len=10000,
             logger_kwargs=dict(), save_freq=10):
 
     logger = EpochLogger(**logger_kwargs)
@@ -455,8 +455,7 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     get_action_ops = [logits, logp_all, v]
 
     # Experience buffer
-    local_steps_per_epoch = int(steps_per_epoch / num_procs())
-    buf = VPGBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
+    buf = VPGBuffer(obs_dim, act_dim, steps_per_epoch, gamma, lam)
 
     # Count variables
     var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
@@ -529,13 +528,14 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
             return False
         return True
 
+    total_interactions = 0
 
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
-        for t in range(local_steps_per_epoch):
+        for t in range(steps_per_epoch):
             logits_t, logp_all_t, v_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
-            a, logp_t = get_legal_action((epoch + 1) * steps_per_epoch)
-            # print ("logits_t:", logits_t[0], "action:", a)
+            a, logp_t = get_legal_action(total_interactions)
+
             # save and log
             buf.store(o, a, r, v_t, logp_t)
             logger.store(VVals=v_t)
@@ -543,9 +543,10 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
             o, r, d, _ = env.step(a)
             ep_ret += r
             ep_len += 1
+            total_interactions += 1
 
             terminal = d or (ep_len == max_ep_len)
-            if terminal or (t == local_steps_per_epoch - 1):
+            if terminal or (t == steps_per_epoch - 1):
                 if not (terminal):
                     print('Warning: trajectory cut off by epoch at %d steps.' % ep_len)
                 # if trajectory didn't reach terminal state, bootstrap value target
@@ -568,7 +569,7 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
         logger.log_tabular('EpRet', with_min_and_max=True)
         logger.log_tabular('EpLen', average_only=True)
         logger.log_tabular('VVals', with_min_and_max=True)
-        logger.log_tabular('TotalEnvInteracts', (epoch + 1) * steps_per_epoch)
+        logger.log_tabular('TotalEnvInteracts', total_interactions)
         logger.log_tabular('LossPi', average_only=True)
         logger.log_tabular('LossV', average_only=True)
         logger.log_tabular('DeltaLossPi', average_only=True)
@@ -588,9 +589,9 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=4000)
+    parser.add_argument('--steps', type=int, default=6400)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-cnn-2')
+    parser.add_argument('--exp_name', type=str, default='hpc-mlp-3X256')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi

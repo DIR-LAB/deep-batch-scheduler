@@ -1,4 +1,5 @@
 import re
+import sys
 import math
 
 
@@ -104,6 +105,7 @@ class Workloads:
     def __init__(self, path):
         self.max = 0
         self.max_exec_time = 0
+        self.min_exec_time = sys.maxsize
         self.max_job_id = 0
         self.max_group_id = 0
         self.max_executable_number = 0
@@ -123,6 +125,8 @@ class Workloads:
                 j = Job(line)
                 if j.run_time > self.max_exec_time:
                     self.max_exec_time = j.run_time
+                if j.run_time < self.min_exec_time:
+                    self.min_exec_time = j.run_time
 
                 self.all_jobs.append(j)
                 
