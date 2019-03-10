@@ -529,8 +529,11 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
                 else:
                     logits_t[0][action] = (np.amin(logits_t[0]) - 1)
                 # print("find action")
-                if times > 128:
-                    print("logits_t[0]:", logits_t[0])
+                if times > 64:
+                    while True:
+                        action = np.random.randint(0, MAX_QUEUE_SIZE)
+                        if action_is_legal(action):
+                            return action, logp_all_t[0][action]
 
     def action_is_legal(action):
         if all(o[0][action * JOB_FEATURES: (action + 1) * JOB_FEATURES] == 0):
