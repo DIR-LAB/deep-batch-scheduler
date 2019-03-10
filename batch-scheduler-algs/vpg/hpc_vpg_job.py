@@ -329,7 +329,8 @@ def discount_cumsum(x, discount):
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    logits = basic_cnn(x, act_dim)
+    logits = resnet(x, act_dim)
+    # logits = basic_cnn(x, act_dim)
     # logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -341,7 +342,8 @@ def actor_critic(x, a, action_space):
     with tf.variable_scope('pi'):
         logits, logp_all, logp = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        v = tf.squeeze(resnet(x, 1), axis=1)
+        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
         # v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
     return logits, logp_all, logp, v
 
@@ -598,7 +600,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=2000)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-basic-cnn-2000')
+    parser.add_argument('--exp_name', type=str, default='hpc-resnet-2000')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
