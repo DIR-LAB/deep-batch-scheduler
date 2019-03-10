@@ -419,10 +419,10 @@ class VPGBuffer:
         return [self.obs_buf, self.act_buf, self.adv_buf,
                 self.ret_buf, self.logp_buf]
 
-
+# pi_lr=0.001, vf_lr=1e-3,
 def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
-            steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
-            vf_lr=1e-3, train_v_iters=20, lam=0.97, max_ep_len=10000,
+            steps_per_epoch=4000, epochs=50, gamma=0.99,
+            train_v_iters=20, lam=0.97, max_ep_len=10000,
             logger_kwargs=dict(), save_freq=10):
 
     logger = EpochLogger(**logger_kwargs)
@@ -430,6 +430,9 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
 
     tf.set_random_seed(seed)
     np.random.seed(seed)
+
+    mylr = 0.001
+    lr_decay = 0.998
 
     env = gym.make(env_name)
     env.my_init(workload_file=workload_file)
@@ -443,6 +446,8 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     # Inputs to computation graph
     x_ph, a_ph = placeholders_from_spaces(env.observation_space, env.action_space)
     adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
+
+    lr_ph = tf.placeholder(tf.float32, shape=None, name='learning_rate')
 
     # Main outputs from computation graph
     # pi, logp, logp_pi, v = cnn_actor_critic(x_ph, a_ph, **ac_kwargs)
@@ -470,8 +475,8 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     approx_ent = tf.reduce_mean(-logp)  # a sample estimate for entropy, also easy to compute
 
     # Optimizers
-    train_pi = MpiAdamOptimizer(learning_rate=pi_lr).minimize(pi_loss)
-    train_v = MpiAdamOptimizer(learning_rate=vf_lr).minimize(v_loss)
+    train_pi = MpiAdamOptimizer(learning_rate=lr_ph).minimize(pi_loss)
+    train_v = MpiAdamOptimizer(learning_rate=lr_ph).minimize(v_loss)
 
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
@@ -482,8 +487,10 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     # Setup model saving
     logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'v': v})  # 'pi': pi,
 
-    def update():
+    def update(cur_lr):
         inputs = {k: v for k, v in zip(all_phs, buf.get())}
+        inputs[lr_ph] = cur_lr
+
         pi_l_old, v_l_old, ent = sess.run([pi_loss, v_loss, approx_ent], feed_dict=inputs)
 
         # Policy gradient step
@@ -561,8 +568,9 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
         if (epoch % save_freq == 0) or (epoch == epochs - 1):
             logger.save_state({'env': env}, None)
 
+        mylr *= lr_decay
         # Perform VPG update!
-        update()
+        update(mylr)
 
         # Log info about epoch
         logger.log_tabular('Epoch', epoch)
