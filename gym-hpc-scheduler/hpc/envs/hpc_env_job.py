@@ -81,7 +81,8 @@ class HpcEnvJob(gym.Env):
         self.num_job_in_batch = 0
 
         # randomly sample a sequence of jobs from workload
-        self.start = random.randint(0, (self.loads.size() - MAX_JOBS_EACH_BATCH))
+        # self.start = random.randint(0, (self.loads.size() - MAX_JOBS_EACH_BATCH))
+        self.start = random.randint(4030, 4411)
         self.num_job_in_batch = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.current_timestamp = self.loads[self.start].submit_time
