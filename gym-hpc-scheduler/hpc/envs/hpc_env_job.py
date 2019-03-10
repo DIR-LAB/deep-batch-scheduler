@@ -93,8 +93,10 @@ class HpcEnvJob(gym.Env):
         q_workloads = []
         running_job_size = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)  # size of running jobs.
         for i in range(running_job_size):
-            req_num_of_processors = random.randint(1, self.loads.max_procs)  # random number of requests
-            runtime_of_job = random.randint(self.loads.min_exec_time, self.loads.max_exec_time)  # random execution time
+            # req_num_of_processors = random.randint(1, self.loads.max_procs)  # random number of requests
+            req_num_of_processors = self.loads.max_procs / (i + 8)
+            # runtime_of_job = random.randint(self.loads.min_exec_time, self.loads.max_exec_time)  # random execution time
+            runtime_of_job = (self.loads.min_exec_time + self.loads.max_exec_time) / (i + 8)
             job_tmp = Job()
             job_tmp.job_id = (-1 - i)  # to be different from the normal jobs; normal jobs have a job_id >= 0
             job_tmp.request_number_of_processors = req_num_of_processors
@@ -102,7 +104,8 @@ class HpcEnvJob(gym.Env):
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
                 # assume job was randomly generated
-                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                # job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
                 if DEBUG:
                     print("In reset, allocate for job, ", job_tmp, " with free nodes: ", self.cluster.free_node)
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)

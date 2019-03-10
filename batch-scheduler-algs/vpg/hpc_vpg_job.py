@@ -431,7 +431,7 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    mylr = 0.001
+    mylr = 0.01
     lr_decay = 0.998
 
     env = gym.make(env_name)
@@ -592,14 +592,13 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='Scheduler-v1') # Scheduler-v1 is the job scheduler env.
-    parser.add_argument('--workload', type=str,
-                        default='../../data/RICC-2010-2.swf')
+    parser.add_argument('--workload', type=str, default='../../data/RICC-2010-2.swf')
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=2000)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-basic-cnn')
+    parser.add_argument('--exp_name', type=str, default='hpc-basic-cnn-2000')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
