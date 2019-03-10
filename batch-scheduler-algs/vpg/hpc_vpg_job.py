@@ -422,7 +422,7 @@ class VPGBuffer:
 # pi_lr=0.001, vf_lr=1e-3,
 def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
             steps_per_epoch=4000, epochs=50, gamma=0.99,
-            train_v_iters=20, lam=0.97, max_ep_len=10000,
+            train_v_iters=10, lam=0.97, max_ep_len=10000,
             logger_kwargs=dict(), save_freq=10):
 
     logger = EpochLogger(**logger_kwargs)
@@ -599,7 +599,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=6400)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-mlp-3X256')
+    parser.add_argument('--exp_name', type=str, default='hpc-basic-cnn')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
