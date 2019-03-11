@@ -18,7 +18,7 @@ from hpc.envs.cluster import Cluster
 MAX_QUEUE_SIZE = 64
 MAX_JOBS_EACH_BATCH = 64
 MIN_JOBS_EACH_BATCH = 64
-MAX_MACHINE_SIZE = 1024
+MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
@@ -81,8 +81,8 @@ class HpcEnvJob(gym.Env):
         self.num_job_in_batch = 0
 
         # randomly sample a sequence of jobs from workload
-        # self.start = random.randint(0, (self.loads.size() - MAX_JOBS_EACH_BATCH))
-        self.start = random.randint(4030, 4411)
+        self.start = random.randint(0, (self.loads.size() - MAX_JOBS_EACH_BATCH))
+        # self.start = random.randint(4030, 4411)
         self.num_job_in_batch = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.current_timestamp = self.loads[self.start].submit_time
@@ -508,7 +508,8 @@ def demo_scheduler(env):
 if __name__ == '__main__':
     print(os.getcwd())
     env = HpcEnvJob()
-    env.my_init(workload_file = '../../../data/RICC-2010-2.swf')
+    env.my_init(workload_file='../../../data/lublin_256.swf')
+    # env.my_init(workload_file='../../../data/RICC-2010-2.swf')
     '''
     for i in range(0, 5):
         ts, _ = env.get_metrics_using_algorithm(i, 12897, 13532)

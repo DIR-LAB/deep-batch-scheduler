@@ -15,7 +15,7 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 MAX_QUEUE_SIZE = 64
 MAX_JOBS_EACH_BATCH = 64
 MIN_JOBS_EACH_BATCH = 64
-MAX_MACHINE_SIZE = 1024
+MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 SAMPLE_ACTIONS = 256
@@ -597,13 +597,13 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='Scheduler-v1') # Scheduler-v1 is the job scheduler env.
-    parser.add_argument('--workload', type=str, default='../../data/RICC-2010-2.swf')
+    parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf') # RICC-2010-2
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=2000)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-resnet-2000')
+    parser.add_argument('--exp_name', type=str, default='hpc-resnet-lubin-2000')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
