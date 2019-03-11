@@ -114,9 +114,11 @@ class HpcEnvJob(gym.Env):
                 break
 
         # schedule the sequence of jobs using FCFS. This would be the standard references for this sequence.
+        # v2: schedule the sequence of jobs using shortest job first.
         self.bsld_fcfs_dict = {}
         while True:
-            self.job_queue.sort(key=lambda j: (j.submit_time))
+            # self.job_queue.sort(key=lambda j: (j.submit_time))
+            self.job_queue.sort(key=lambda j: (j.request_time))
             get_this_job_scheduled = False
             for i in range(0, MAX_QUEUE_SIZE):
                 if self.job_queue[i].job_id == 0:

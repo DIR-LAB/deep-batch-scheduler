@@ -342,9 +342,9 @@ def actor_critic(x, a, action_space):
     with tf.variable_scope('pi'):
         logits, logp_all, logp = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(resnet(x, 1), axis=1)
+        # v = tf.squeeze(resnet(x, 1), axis=1)
         # v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        # v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
     return logits, logp_all, logp, v
 
 
@@ -424,7 +424,7 @@ class VPGBuffer:
 # pi_lr=0.001, vf_lr=1e-3,
 def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
             steps_per_epoch=4000, epochs=50, gamma=0.99,
-            train_v_iters=10, lam=0.97, max_ep_len=10000,
+            train_v_iters=20, lam=0.97, max_ep_len=10000,
             logger_kwargs=dict(), save_freq=10):
 
     logger = EpochLogger(**logger_kwargs)
