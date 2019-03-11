@@ -231,7 +231,7 @@ def inference(input_tensor_batch, act_dim, n, reuse):
         with tf.variable_scope('conv3_%d' % i, reuse=reuse):
             conv3 = residual_block(layers[-1], 64)
             layers.append(conv3)
-        assert conv3.get_shape().as_list()[1:] == [34, 2, 64]
+        assert conv3.get_shape().as_list()[1:] == [10, 2, 64]
 
     with tf.variable_scope('fc', reuse=reuse):
         in_channel = layers[-1].get_shape().as_list()[-1]
