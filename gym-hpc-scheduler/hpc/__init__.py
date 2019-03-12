@@ -14,3 +14,9 @@ register(
         id='Scheduler-v1',
         entry_point='hpc.envs:HpcEnvJob',
 )
+
+register(
+        id='Scheduler-v3',
+        entry_point='hpc.envs:HpcEnvJobLegal',
+)
+

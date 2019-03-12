@@ -1,21 +1,20 @@
 import numpy as np
 import tensorflow as tf
-import scipy.signal
-import os
-import math
-import hpc
 import gym
-from gym.spaces import Box, Discrete
 import time
+import os
+import scipy.signal
+import math
+
+import hpc
+from gym.spaces import Box, Discrete
 from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 
-EPS = 1e-8
-
 MAX_QUEUE_SIZE = 64
 MAX_JOBS_EACH_BATCH = 64
-MIN_JOBS_EACH_BATCH = 1
+MIN_JOBS_EACH_BATCH = 64
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
@@ -31,16 +30,23 @@ BN_EPSILON = 0.001
 weight_decay = 0.0002  # scale for l2 regularization
 num_residual_blocks = 5 # How many residual blocks do you want
 
+# Exploration
+explore_rate = 0.1
+
+
 def combined_shape(length, shape=None):
     if shape is None:
         return (length,)
     return (length, shape) if np.isscalar(shape) else (length, *shape)
 
+
 def placeholder(dim=None):
     return tf.placeholder(dtype=tf.float32, shape=combined_shape(None,dim))
 
+
 def placeholders(*args):
     return [placeholder(dim) for dim in args]
+
 
 def placeholder_from_space(space):
     if isinstance(space, Box):
@@ -49,9 +55,9 @@ def placeholder_from_space(space):
         return tf.placeholder(dtype=tf.int32, shape=(None,))
     raise NotImplementedError
 
+
 def placeholders_from_spaces(*args):
     return [placeholder_from_space(space) for space in args]
-
 
 # ResNet Architecture
 def activation_summary(x):
@@ -307,67 +313,45 @@ def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
         x = tf.layers.dense(x, units=h, activation=activation)
     return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
 
+
 def get_vars(scope=''):
     return [x for x in tf.trainable_variables() if scope in x.name]
+
 
 def count_vars(scope=''):
     v = get_vars(scope)
     return sum([np.prod(var.shape.as_list()) for var in v])
 
-def gaussian_likelihood(x, mu, log_std):
-    pre_sum = -0.5 * (((x-mu)/(tf.exp(log_std)+EPS))**2 + 2*log_std + np.log(2*np.pi))
-    return tf.reduce_sum(pre_sum, axis=1)
 
 def discount_cumsum(x, discount):
-    """
-    magic from rllab for computing discounted cumulative sums of vectors.
-
-    input:
-        vector x,
-        [x0,
-         x1,
-         x2]
-
-    output:
-        [x0 + discount * x1 + discount^2 * x2,
-         x1 + discount * x2,
-         x2]
-    """
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
-
-"""
-Policies
-"""
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
     # logits = resnet(x, act_dim)
     # logits = basic_cnn(x, act_dim)
-    logits = mlp(x, list((64,64,64))+[act_dim], tf.tanh, None)
+    logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
-    pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
+    pi = tf.squeeze(tf.multinomial(logits, 1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
     return pi, logp, logp_pi
 
-"""
-Actor-Critics
-"""
-def actor_critic(x, a, action_space=None):
 
+def actor_critic(x, a, action_space):
     with tf.variable_scope('pi'):
         pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
         # v = tf.squeeze(resnet(x, 1), axis=1)
         # v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        v = tf.squeeze(mlp(x, list((64,64,64))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
     return pi, logp, logp_pi, v
 
 
-class PPOBuffer:
+class VPGBuffer:
     """
-    A buffer for storing trajectories experienced by a PPO agent interacting
+    A buffer for storing trajectories experienced by a HPC VPG agent interacting
     with the environment, and using Generalized Advantage Estimation (GAE-Lambda)
     for calculating the advantages of state-action pairs.
     """
@@ -434,104 +418,24 @@ class PPOBuffer:
         self.ptr, self.path_start_idx = 0, 0
         # the next two lines implement the advantage normalization trick
         adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
-        if adv_std == 0:
-            adv_std = 1
         self.adv_buf = (self.adv_buf - adv_mean) / adv_std
         return [self.obs_buf, self.act_buf, self.adv_buf,
                 self.ret_buf, self.logp_buf]
 
-
-"""
-
-Proximal Policy Optimization (by clipping), 
-
-with early stopping based on approximate KL
-
-"""
-
-
-def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
-        steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-1,
-        vf_lr=1e-1, train_pi_iters=60, train_v_iters=80, lam=0.97, max_ep_len=1000,
-        target_kl=0.01, logger_kwargs=dict(), save_freq=10):
-    """
-
-    Args:
-        env_fn : A function which creates a copy of the environment.
-            The environment must satisfy the OpenAI Gym API.
-
-        actor_critic: A function which takes in placeholder symbols
-            for state, ``x_ph``, and action, ``a_ph``, and returns the main
-            outputs from the agent's Tensorflow computation graph:
-
-            ===========  ================  ======================================
-            Symbol       Shape             Description
-            ===========  ================  ======================================
-            ``pi``       (batch, act_dim)  | Samples actions from policy given
-                                           | states.
-            ``logp``     (batch,)          | Gives log probability, according to
-                                           | the policy, of taking actions ``a_ph``
-                                           | in states ``x_ph``.
-            ``logp_pi``  (batch,)          | Gives log probability, according to
-                                           | the policy, of the action sampled by
-                                           | ``pi``.
-            ``v``        (batch,)          | Gives the value estimate for states
-                                           | in ``x_ph``. (Critical: make sure
-                                           | to flatten this!)
-            ===========  ================  ======================================
-
-        ac_kwargs (dict): Any kwargs appropriate for the actor_critic
-            function you provided to PPO.
-
-        seed (int): Seed for random number generators.
-
-        steps_per_epoch (int): Number of steps of interaction (state-action pairs)
-            for the agent and the environment in each epoch.
-
-        epochs (int): Number of epochs of interaction (equivalent to
-            number of policy updates) to perform.
-
-        gamma (float): Discount factor. (Always between 0 and 1.)
-
-        clip_ratio (float): Hyperparameter for clipping in the policy objective.
-            Roughly: how far can the new policy go from the old policy while
-            still profiting (improving the objective function)? The new policy
-            can still go farther than the clip_ratio says, but it doesn't help
-            on the objective anymore. (Usually small, 0.1 to 0.3.)
-
-        pi_lr (float): Learning rate for policy optimizer.
-
-        vf_lr (float): Learning rate for value function optimizer.
-
-        train_pi_iters (int): Maximum number of gradient descent steps to take
-            on policy loss per epoch. (Early stopping may cause optimizer
-            to take fewer than this.)
-
-        train_v_iters (int): Number of gradient descent steps to take on
-            value function per epoch.
-
-        lam (float): Lambda for GAE-Lambda. (Always between 0 and 1,
-            close to 1.)
-
-        max_ep_len (int): Maximum length of trajectory / episode / rollout.
-
-        target_kl (float): Roughly what KL divergence we think is appropriate
-            between new and old policies after an update. This will get used
-            for early stopping. (Usually small, 0.01 or 0.05.)
-
-        logger_kwargs (dict): Keyword args for EpochLogger.
-
-        save_freq (int): How often (in terms of gap between epochs) to save
-            the current policy and value function.
-
-    """
+# pi_lr=0.001, vf_lr=1e-3,
+def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
+            steps_per_epoch=4000, epochs=50, gamma=0.99,
+            train_v_iters=20, lam=0.97, max_ep_len=10000,
+            logger_kwargs=dict(), save_freq=10):
 
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
 
-    seed += 10000 * proc_id()
     tf.set_random_seed(seed)
     np.random.seed(seed)
+
+    mylr = 0.01
+    lr_decay = 0.998
 
     env = gym.make(env_name)
     env.my_init(workload_file=workload_file)
@@ -546,6 +450,8 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
     x_ph, a_ph = placeholders_from_spaces(env.observation_space, env.action_space)
     adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
 
+    lr_ph = tf.placeholder(tf.float32, shape=None, name='learning_rate')
+
     # Main outputs from computation graph
     pi, logp, logp_pi, v = actor_critic(x_ph, a_ph, **ac_kwargs)
 
@@ -556,28 +462,23 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
     get_action_ops = [pi, v, logp_pi]
 
     # Experience buffer
-    local_steps_per_epoch = int(steps_per_epoch / num_procs())
-    buf = PPOBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
+    buf = VPGBuffer(obs_dim, act_dim, steps_per_epoch, gamma, lam)
 
     # Count variables
     var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
     logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
 
-    # PPO objectives
-    ratio = tf.exp(logp - logp_old_ph)  # pi(a|s) / pi_old(a|s)
-    min_adv = tf.where(adv_ph > 0, (1 + clip_ratio) * adv_ph, (1 - clip_ratio) * adv_ph)
-    pi_loss = -tf.reduce_mean(tf.minimum(ratio * adv_ph, min_adv))
+    # VPG objectives
+    pi_loss = -tf.reduce_mean(logp * adv_ph)
     v_loss = tf.reduce_mean((ret_ph - v) ** 2)
 
     # Info (useful to watch during learning)
     approx_kl = tf.reduce_mean(logp_old_ph - logp)  # a sample estimate for KL-divergence, easy to compute
     approx_ent = tf.reduce_mean(-logp)  # a sample estimate for entropy, also easy to compute
-    clipped = tf.logical_or(ratio > (1 + clip_ratio), ratio < (1 - clip_ratio))
-    clipfrac = tf.reduce_mean(tf.cast(clipped, tf.float32))
 
     # Optimizers
-    train_pi = MpiAdamOptimizer(learning_rate=pi_lr).minimize(pi_loss)
-    train_v = MpiAdamOptimizer(learning_rate=vf_lr).minimize(v_loss)
+    train_pi = MpiAdamOptimizer(learning_rate=lr_ph).minimize(pi_loss)
+    train_v = MpiAdamOptimizer(learning_rate=lr_ph).minimize(v_loss)
 
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
@@ -586,36 +487,36 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
     sess.run(sync_all_params())
 
     # Setup model saving
-    logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'pi': pi, 'v': v})
+    logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'v': v})  # 'pi': pi,
 
-    def update():
+    def update(cur_lr):
         inputs = {k: v for k, v in zip(all_phs, buf.get())}
+        inputs[lr_ph] = cur_lr
+
         pi_l_old, v_l_old, ent = sess.run([pi_loss, v_loss, approx_ent], feed_dict=inputs)
 
-        # Training
-        for i in range(train_pi_iters):
-            _, kl = sess.run([train_pi, approx_kl], feed_dict=inputs)
-            kl = mpi_avg(kl)
-            if kl > 1.5 * target_kl:
-                logger.log('Early stopping at step %d due to reaching max kl.' % i)
-                break
-        logger.store(StopIter=i)
+        # Policy gradient step
+        sess.run(train_pi, feed_dict=inputs)
+
+        # Value function learning
         for _ in range(train_v_iters):
             sess.run(train_v, feed_dict=inputs)
 
         # Log changes from update
-        pi_l_new, v_l_new, kl, cf = sess.run([pi_loss, v_loss, approx_kl, clipfrac], feed_dict=inputs)
+        pi_l_new, v_l_new, kl = sess.run([pi_loss, v_loss, approx_kl], feed_dict=inputs)
         logger.store(LossPi=pi_l_old, LossV=v_l_old,
-                     KL=kl, Entropy=ent, ClipFrac=cf,
+                     KL=kl, Entropy=ent,
                      DeltaLossPi=(pi_l_new - pi_l_old),
                      DeltaLossV=(v_l_new - v_l_old))
 
     start_time = time.time()
     o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
 
+    total_interactions = 0
+
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
-        for t in range(local_steps_per_epoch):
+        for t in range(steps_per_epoch):
             a, v_t, logp_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1, -1)})
 
             # save and log
@@ -625,9 +526,10 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
             o, r, d, _ = env.step(a)
             ep_ret += r
             ep_len += 1
+            total_interactions += 1
 
             terminal = d or (ep_len == max_ep_len)
-            if terminal or (t == local_steps_per_epoch - 1):
+            if terminal or (t == steps_per_epoch - 1):
                 if not (terminal):
                     print('Warning: trajectory cut off by epoch at %d steps.' % ep_len)
                 # if trajectory didn't reach terminal state, bootstrap value target
@@ -642,39 +544,37 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
         if (epoch % save_freq == 0) or (epoch == epochs - 1):
             logger.save_state({'env': env}, None)
 
-        # Perform PPO update!
-        update()
+        mylr *= lr_decay
+        # Perform VPG update!
+        update(mylr)
 
         # Log info about epoch
         logger.log_tabular('Epoch', epoch)
         logger.log_tabular('EpRet', with_min_and_max=True)
         logger.log_tabular('EpLen', average_only=True)
         logger.log_tabular('VVals', with_min_and_max=True)
-        logger.log_tabular('TotalEnvInteracts', (epoch + 1) * steps_per_epoch)
+        logger.log_tabular('TotalEnvInteracts', total_interactions)
         logger.log_tabular('LossPi', average_only=True)
         logger.log_tabular('LossV', average_only=True)
         logger.log_tabular('DeltaLossPi', average_only=True)
         logger.log_tabular('DeltaLossV', average_only=True)
         logger.log_tabular('Entropy', average_only=True)
         logger.log_tabular('KL', average_only=True)
-        logger.log_tabular('ClipFrac', average_only=True)
-        logger.log_tabular('StopIter', average_only=True)
         logger.log_tabular('Time', time.time() - start_time)
         logger.dump_tabular()
 
 
 if __name__ == '__main__':
     import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='Scheduler-v3') # Scheduler-v3.
-    parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')  # RICC-2010-2
-    parser.add_argument('--gamma', type=float, default=1)
+    parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf') # RICC-2010-2
+    parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=640)
-    parser.add_argument('--epochs', type=int, default=6000)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo')
+    parser.add_argument('--epochs', type=int, default=2000)
+    parser.add_argument('--exp_name', type=str, default='hpc-cnn-lubin-2000')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
@@ -687,6 +587,6 @@ if __name__ == '__main__':
     log_data_dir = os.path.join(current_dir, '../../data/logs/')
     logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
 
-    ppo(args.env, workload_file, ac_kwargs=dict(), gamma=args.gamma,
-        seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+    hpc_vpg(args.env, workload_file, ac_kwargs=dict(), gamma=args.gamma,
+            seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
+            logger_kwargs=logger_kwargs)
