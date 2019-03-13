@@ -320,5 +320,5 @@ if __name__ == '__main__':
 
     slp = SLProcessor(workload_file=workload_file)
     with open(output_file, 'w') as f:
-        for i in range(0, 300):
+        for i in range(0, 1):
             slp.run_scheduler_to_generate_log(2, f)

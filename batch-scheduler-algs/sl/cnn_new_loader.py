@@ -279,25 +279,14 @@ def mlp(x):
 if __name__ == '__main__':
 
     if len(sys.argv) != 3:
-        print("Usage: python cnn_new.py training-data-path ouput-dir")
+        print("Usage: python cnn_new_loader.py training-data-path model-dir-path ")
         sys.exit()
-
-    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 960)) # 3264
-    a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
-    act_dim = 64
-    logits = basic_cnn(x_ph)
-    # logits = resnet(x_ph)
-    # logits = mlp(x_ph)
-    # labels = tf.one_hot(a_ph, depth=act_dim)
-    loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
-    train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
 
     input = []
     label = []
     sample_cnt = 0
-    # "../../data/RICC-SL-Shortest.txt"
     training_samples = sys.argv[1]
+    model_dir = sys.argv[2]
     sample_json = []
     with open(training_samples, 'r') as f:
         for line in f:
@@ -320,59 +309,17 @@ if __name__ == '__main__':
     label_train = label[:N_train]
     label_test = label[N_train:]
 
-    index = 0
-    batch_size = 200
-    hm_epoch = 100
+    y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
+    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 960))  # 3264
+    a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
+    logits = basic_cnn(x_ph)
+    pred = tf.nn.softmax(logits)  # Apply softmax to logits
+    prediction = tf.argmax(pred, 1)
+    correct_prediction = tf.equal(prediction, y_test)
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
-    def next_batch(index, batch_size):
-        if index + batch_size > sample_cnt:
-            x = np.array(feature_train[index:])
-            y = np.array(label_train[index:])
-            index = -1
-        else:
-            x = np.array(feature_train[index:index+batch_size])
-            y = np.array(label_train[index:index+batch_size])
-            index += batch_size
-        return x, y, index
-
-
-    # Add ops to save and restore all the variables.
-    output_dir = sys.argv[2]
-
-    # x, y, index = next_batch(index, batch_size)
     with tf.Session() as sess:
         saver = tf.train.Saver()
-        sess.run(tf.global_variables_initializer())
-        for epoch in range(hm_epoch):
-            epoch_loss = 0
-            index = 0
-            while index!=-1:
-                epoch_x, epoch_y, index = next_batch(index, batch_size)
-                # print (len(epoch_x), len(epoch_y))
-                _, c = sess.run([train_op, loss], feed_dict={x_ph: epoch_x, a_ph: epoch_y})
-                epoch_loss += c
-            print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
-
-        # Evaluation
-        y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
-        pred = tf.nn.softmax(logits)  # Apply softmax to logits
-        prediction = tf.argmax(pred, 1)
-        correct_prediction = tf.equal(prediction, y_test)
-
-        # Calculate accuracy
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+        saver.restore(sess, model_dir)
+        print ("Model Restored")
         print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}))
-        pred_save = prediction.eval({x_ph: feature_test, y_test: label_test})
-
-        model_file = os.path.join(output_dir, "nn.ckpt")
-        save_path = saver.save(sess, model_file)
-        print("Model saved in path: %s" % save_path)
-
-    label_file = os.path.join(output_dir, "label.csv")
-    predict_file = os.path.join(output_dir, "predict.csv")
-    with open(label_file, 'w') as csvf:
-        writer = csv.writer(csvf)
-        writer.writerow(label_test)
-    with open(predict_file, 'w') as csvf:
-        writer = csv.writer(csvf)
-        writer.writerow(pred_save.tolist())
