@@ -3,6 +3,8 @@ import tensorflow as tf
 import scipy.signal
 import os
 import math
+import json
+from random import shuffle
 import hpc
 import gym
 from gym.spaces import Box, Discrete
@@ -250,8 +252,51 @@ def resnet(x_ph, act_dim):
 
     x = tf.reshape(x_ph, shape=[-1, (job_queue_row + machine_row), sq, JOB_FEATURES])
     return inference(x, act_dim, num_residual_blocks, reuse=False)
+'''
+def basic_cnn(x_ph, act_dim):
+    x = tf.reshape(x_ph, shape=[-1, 40, 8, 3])
+    conv1 = tf.layers.conv2d(
+            inputs=x,
+            filters=32,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool1 = tf.layers.max_pooling2d(
+            inputs=conv1,
+            pool_size=[2, 2],
+            strides=2
+    )
+    conv2 = tf.layers.conv2d(
+            inputs=pool1,
+            filters=64,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool2 = tf.layers.max_pooling2d(
+            inputs=conv2,
+            pool_size=[2, 2],
+            strides=2
+    )
+    flat = tf.reshape(pool2, [-1, 10 * 2 * 64])
+    dense = tf.layers.dense(
+            inputs=flat,
+            units=1024,
+            activation=tf.nn.relu
+    )
+    dropout = tf.layers.dropout(
+            inputs=dense,
+            rate=0.5,
+    )
+    return tf.layers.dense(
+            inputs=dropout,
+            units=act_dim
+    )
 
-
+'''
 # Basic CNN Architecture
 def basic_cnn(x_ph, act_dim):
     sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
@@ -342,14 +387,14 @@ Policies
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    logits = resnet(x, act_dim)
-    # logits = basic_cnn(x, act_dim)
+    # logits = resnet(x, act_dim)
+    logits = basic_cnn(x, act_dim)
     # logits = mlp(x, list((64,64,64))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
     logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
-    return pi, logp, logp_pi
+    return logits, pi, logp, logp_pi
 
 """
 Actor-Critics
@@ -357,12 +402,12 @@ Actor-Critics
 def actor_critic(x, a, action_space=None):
 
     with tf.variable_scope('pi'):
-        pi, logp, logp_pi = categorical_policy(x, a, action_space)
+        logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(resnet(x, 1), axis=1)
-        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        # v = tf.squeeze(resnet(x, 1), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
         # v = tf.squeeze(mlp(x, list((64,64,64))+[1], tf.tanh, None), axis=1)
-    return pi, logp, logp_pi, v
+    return logits, pi, logp, logp_pi, v
 
 
 class PPOBuffer:
@@ -450,7 +495,7 @@ with early stopping based on approximate KL
 """
 
 
-def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
+def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
         steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-1,
         vf_lr=1e-1, train_pi_iters=60, train_v_iters=80, lam=0.97, max_ep_len=1000,
         target_kl=0.01, logger_kwargs=dict(), save_freq=10):
@@ -529,9 +574,9 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
 
-    seed += 10000 * proc_id()
-    tf.set_random_seed(seed)
-    np.random.seed(seed)
+    #seed += 10000 * proc_id()
+    #tf.set_random_seed(seed)
+    #np.random.seed(seed)
 
     env = gym.make(env_name)
     env.my_init(workload_file=workload_file)
@@ -547,7 +592,7 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
     adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
 
     # Main outputs from computation graph
-    pi, logp, logp_pi, v = actor_critic(x_ph, a_ph, **ac_kwargs)
+    logits, pi, logp, logp_pi, v = actor_critic(x_ph, a_ph, **ac_kwargs)
 
     # Need all placeholders in *this* order later (to zip with data from buffer)
     all_phs = [x_ph, a_ph, adv_ph, ret_ph, logp_old_ph]
@@ -579,8 +624,79 @@ def ppo(env_name, workload_file, ac_kwargs=dict(), seed=0,
     train_pi = MpiAdamOptimizer(learning_rate=pi_lr).minimize(pi_loss)
     train_v = MpiAdamOptimizer(learning_rate=vf_lr).minimize(v_loss)
 
+    # Loader Model from trained one: does not work as we have multiple models. (pi and v)
+    # saver = tf.train.Saver()
+    # saver.restore(sess, model_path)
+
+    # Directly train it.
+    loss_s = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+    train_op = optimizer.minimize(loss=loss_s, global_step=tf.train.get_global_step())
+
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
+
+    sample_json = []
+    input_s = []
+    label_s = []
+    sample_cnt = 0
+
+    print("loading SL training data:", model_path)
+    with open(model_path, 'r') as f:
+        for line in f:
+            try:
+                one_sample = json.loads(line)
+                sample_json.append(one_sample)
+            except:
+                pass
+
+    shuffle(sample_json)
+    for sample in sample_json:
+        input_s.append(sample['observe'])
+        label_s.append(sample['label'])
+
+    N_train = int(len(sample_json) * 0.9)
+    sample_cnt = N_train
+    feature_train = input_s[:N_train]
+    feature_test = input_s[N_train:]
+    label_train = label_s[:N_train]
+    label_test = label_s[N_train:]
+
+    index = 0
+    batch_size = 200
+    hm_epoch = 250
+
+    def next_batch(index, batch_size):
+        if index + batch_size > sample_cnt:
+            x = np.array(feature_train[index:])
+            y = np.array(label_train[index:])
+            index = -1
+        else:
+            x = np.array(feature_train[index:index + batch_size])
+            y = np.array(label_train[index:index + batch_size])
+            index += batch_size
+        return x, y, index
+
+    for epoch in range(hm_epoch):
+        epoch_loss = 0
+        index = 0
+        while index != -1:
+            epoch_x, epoch_y, index = next_batch(index, batch_size)
+            _, c = sess.run([train_op, loss_s], feed_dict={x_ph: epoch_x, a_ph: epoch_y})
+            epoch_loss += c
+        print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
+
+    # Evaluation
+    y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
+    pred = tf.nn.softmax(logits)  # Apply softmax to logits
+    prediction = tf.argmax(pred, 1)
+    correct_prediction = tf.equal(prediction, y_test)
+
+    # Calculate accuracy
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+    print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}, session = sess))
+
+    print("PreTrain the Model Finish")
 
     # Sync params across processes
     sess.run(sync_all_params())
@@ -671,13 +787,12 @@ if __name__ == '__main__':
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')  # RICC-2010-2
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=640)
     parser.add_argument('--epochs', type=int, default=6000)
     parser.add_argument('--exp_name', type=str, default='hpc-ppo')
     args = parser.parse_args()
 
-    mpi_fork(args.cpu)  # run parallel code with mpi
+    mpi_fork(1)  # run parallel code with mpi
 
     from spinup.utils.run_utils import setup_logger_kwargs
 
@@ -687,6 +802,6 @@ if __name__ == '__main__':
     log_data_dir = os.path.join(current_dir, '../../data/logs/')
     logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
 
-    ppo(args.env, workload_file, ac_kwargs=dict(), gamma=args.gamma,
+    ppo(args.env, workload_file, '../../data/lubin-SL-Shortest.txt', ac_kwargs=dict(), gamma=args.gamma,
         seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
         logger_kwargs=logger_kwargs)

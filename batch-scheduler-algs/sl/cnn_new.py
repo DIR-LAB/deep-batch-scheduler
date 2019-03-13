@@ -322,7 +322,7 @@ if __name__ == '__main__':
 
     index = 0
     batch_size = 200
-    hm_epoch = 100
+    hm_epoch = 150
 
     def next_batch(index, batch_size):
         if index + batch_size > sample_cnt:

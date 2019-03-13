@@ -58,6 +58,8 @@ class HpcEnvJob(gym.Env):
         self.loads = None
         self.cluster = None
         self.bsld_fcfs_dict = {}
+        self.scheduled_logs = []
+        self.scheduled_bsld = {}
 
     def my_init(self, workload_file = ''):
         print ("loading workloads from dataset:", workload_file)
@@ -79,6 +81,8 @@ class HpcEnvJob(gym.Env):
         self.schedule_logs = []
         self.last_job_in_batch = 0
         self.num_job_in_batch = 0
+        self.scheduled_logs = []
+        self.scheduled_bsld = {}
 
         # randomly sample a sequence of jobs from workload
         self.start = random.randint(0, (self.loads.size() - MAX_JOBS_EACH_BATCH))
@@ -117,8 +121,8 @@ class HpcEnvJob(gym.Env):
         # v2: schedule the sequence of jobs using shortest job first.
         self.bsld_fcfs_dict = {}
         while True:
-            # self.job_queue.sort(key=lambda j: (j.submit_time))
-            self.job_queue.sort(key=lambda j: (j.request_time))
+            self.job_queue.sort(key=lambda j: (j.submit_time))
+            # self.job_queue.sort(key=lambda j: (j.request_time))
             get_this_job_scheduled = False
             for i in range(0, MAX_QUEUE_SIZE):
                 if self.job_queue[i].job_id == 0:
@@ -331,8 +335,6 @@ class HpcEnvJob(gym.Env):
         job_for_scheduling_index = action
 
         get_this_job_scheduled = False
-        bsld = 0.0
-        scheduled_logs = []
 
         if self.cluster.can_allocated(job_for_scheduling):
             assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
@@ -342,13 +344,13 @@ class HpcEnvJob(gym.Env):
             job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
                                                                           job_for_scheduling.request_number_of_processors)
             self.running_jobs.append(job_for_scheduling)
-            scheduled_logs.append(job_for_scheduling)
+            self.scheduled_logs.append(job_for_scheduling)
             get_this_job_scheduled = True
             _tmp = max(1.0, (float(
                 job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
                              /
                              max(job_for_scheduling.run_time, 10)))
-            bsld += (_tmp / self.num_job_in_batch)
+            self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
             self.job_queue[job_for_scheduling_index] = Job()  # remove the job from job queue
         else:
             # if there is no enough resource for current job, try to backfill using other jobs
@@ -401,11 +403,11 @@ class HpcEnvJob(gym.Env):
                     _job.scheduled_time = self.current_timestamp
                     _job.allocated_machines = self.cluster.allocate(_job.job_id, _job.request_number_of_processors)
                     self.running_jobs.append(_job)
-                    scheduled_logs.append(_job)
+                    self.scheduled_logs.append(_job)
                     _tmp = max(1.0, float(_job.scheduled_time - _job.submit_time + _job.run_time)
                                /
                                max(_job.run_time, 10))
-                    bsld += (_tmp / self.num_job_in_batch)
+                    self.scheduled_bsld[_job.job_id] = (_tmp / self.num_job_in_batch)
                     self.job_queue[j] = Job()
 
         # move time forward
@@ -460,18 +462,21 @@ class HpcEnvJob(gym.Env):
 
         # we want to minimize bsld. Instead of using Mao's method, we first tried our own design.
         # reward = AverageBSLD_Scheduled(FCFS) - AverageBSLD_Scheduled(Our).
-        fcfs = 0.0
-        for _job in scheduled_logs:
-            fcfs += (self.bsld_fcfs_dict[_job.job_id])
-        reward = fcfs - bsld
-
         done = True
         for i in range(self.start, self.last_job_in_batch):
             if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
                 done = False
                 break
-
-        return [obs, reward, done, None]
+        if done:
+            fcfs = 0.0
+            mine = 0.0
+            for _job in self.scheduled_logs:
+                fcfs += (self.bsld_fcfs_dict[_job.job_id])
+                mine += (self.scheduled_bsld[_job.job_id])
+            reward = fcfs - mine
+            return [obs, reward, True, None]
+        else:
+            return [obs, 0, False, None]
 
 
 def heuristic(env, s):

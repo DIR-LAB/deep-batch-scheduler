@@ -58,6 +58,8 @@ class HpcEnvJobLegal(gym.Env):
         self.loads = None
         self.cluster = None
         self.bsld_fcfs_dict = {}
+        self.scheduled_logs = []
+        self.scheduled_bsld = {}
 
     def my_init(self, workload_file = ''):
         print ("loading workloads from dataset:", workload_file)

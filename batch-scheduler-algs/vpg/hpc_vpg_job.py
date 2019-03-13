@@ -3,6 +3,8 @@ import tensorflow as tf
 import gym
 import time
 import os
+import json
+from random import shuffle
 import scipy.signal
 import math
 
@@ -292,7 +294,7 @@ def basic_cnn(x_ph, act_dim):
             pool_size=[2, 2],
             strides=2
     )
-    flat = tf.reshape(pool2, [-1, 34 * 2 * 64])
+    flat = tf.reshape(pool2, [-1, int((job_queue_row + machine_row)/4) * 2 * 64])
     dense = tf.layers.dense(
             inputs=flat,
             units=1024,
@@ -329,8 +331,8 @@ def discount_cumsum(x, discount):
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    logits = resnet(x, act_dim)
-    # logits = basic_cnn(x, act_dim)
+    # logits = resnet(x, act_dim)
+    logits = basic_cnn(x, act_dim)
     # logits = mlp(x, list((256,256,256))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -343,8 +345,8 @@ def actor_critic(x, a, action_space):
         logits, logp_all, logp = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
         # v = tf.squeeze(resnet(x, 1), axis=1)
-        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        # v = tf.squeeze(mlp(x, list((256,256,256))+[1], tf.tanh, None), axis=1)
     return logits, logp_all, logp, v
 
 
@@ -422,7 +424,7 @@ class VPGBuffer:
                 self.ret_buf, self.logp_buf]
 
 # pi_lr=0.001, vf_lr=1e-3,
-def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
+def hpc_vpg(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
             steps_per_epoch=4000, epochs=50, gamma=0.99,
             train_v_iters=20, lam=0.97, max_ep_len=10000,
             logger_kwargs=dict(), save_freq=10):
@@ -480,8 +482,79 @@ def hpc_vpg(env_name, workload_file, ac_kwargs=dict(), seed=0,
     train_pi = MpiAdamOptimizer(learning_rate=lr_ph).minimize(pi_loss)
     train_v = MpiAdamOptimizer(learning_rate=lr_ph).minimize(v_loss)
 
+    # Loader Model from trained one: does not work as we have multiple models. (pi and v)
+    # saver = tf.train.Saver()
+    # saver.restore(sess, model_path)
+
+    # Directly train it.
+    loss_s = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+    train_op = optimizer.minimize(loss=loss_s, global_step=tf.train.get_global_step())
+
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
+
+    sample_json = []
+    input_s = []
+    label_s = []
+    sample_cnt = 0
+
+    print("loading SL training data:", model_path)
+    with open(model_path, 'r') as f:
+        for line in f:
+            try:
+                one_sample = json.loads(line)
+                sample_json.append(one_sample)
+            except:
+                pass
+
+    shuffle(sample_json)
+    for sample in sample_json:
+        input_s.append(sample['observe'])
+        label_s.append(sample['label'])
+
+    N_train = int(len(sample_json) * 0.9)
+    sample_cnt = N_train
+    feature_train = input_s[:N_train]
+    feature_test = input_s[N_train:]
+    label_train = label_s[:N_train]
+    label_test = label_s[N_train:]
+
+    index = 0
+    batch_size = 200
+    hm_epoch = 100
+
+    def next_batch(index, batch_size):
+        if index + batch_size > sample_cnt:
+            x = np.array(feature_train[index:])
+            y = np.array(label_train[index:])
+            index = -1
+        else:
+            x = np.array(feature_train[index:index + batch_size])
+            y = np.array(label_train[index:index + batch_size])
+            index += batch_size
+        return x, y, index
+
+    for epoch in range(hm_epoch):
+        epoch_loss = 0
+        index = 0
+        while index != -1:
+            epoch_x, epoch_y, index = next_batch(index, batch_size)
+            _, c = sess.run([train_op, loss_s], feed_dict={x_ph: epoch_x, a_ph: epoch_y})
+            epoch_loss += c
+        print('Epoch', epoch, 'completed out of', hm_epoch, 'loss:', epoch_loss)
+
+    # Evaluation
+    y_test = tf.placeholder(dtype=tf.int64, shape=(None,))
+    pred = tf.nn.softmax(logits)  # Apply softmax to logits
+    prediction = tf.argmax(pred, 1)
+    correct_prediction = tf.equal(prediction, y_test)
+
+    # Calculate accuracy
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+    print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}, session=sess))
+
+    print("PreTrain the Model Finish")
 
     # Sync params across processes
     sess.run(sync_all_params())
@@ -600,13 +673,12 @@ if __name__ == '__main__':
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf') # RICC-2010-2
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--cpu', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=2000)
+    parser.add_argument('--steps', type=int, default=1200)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument('--exp_name', type=str, default='hpc-resnet-lubin-2000')
+    parser.add_argument('--exp_name', type=str, default='hpc-cnn-lubin-2000')
     args = parser.parse_args()
 
-    mpi_fork(args.cpu)  # run parallel code with mpi
+    mpi_fork(1)  # run parallel code with mpi
 
     from spinup.utils.run_utils import setup_logger_kwargs
 
@@ -616,6 +688,6 @@ if __name__ == '__main__':
     log_data_dir = os.path.join(current_dir, '../../data/logs/')
     logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
 
-    hpc_vpg(args.env, workload_file, ac_kwargs=dict(), gamma=args.gamma,
+    hpc_vpg(args.env, workload_file, '../../data/lubin-SL-Shortest.txt', ac_kwargs=dict(), gamma=args.gamma,
             seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
             logger_kwargs=logger_kwargs)
