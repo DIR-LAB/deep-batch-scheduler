@@ -8,7 +8,7 @@ from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
 MAX_QUEUE_SIZE = 63
-MAX_MACHINE_SIZE = 1024
+MAX_MACHINE_SIZE = 256
 
 MAX_JOBS_EACH_BATCH = 64
 JOB_FEATURES = 3
@@ -154,7 +154,7 @@ class SLProcessor:
         self.num_job_in_batch = 0
         self.next_arriving_job_idx = 0
 
-        self.start = 0
+        self.start = np.random.randint(0, (self.loads.size() - MAX_QUEUE_SIZE))
         self.last_job_in_batch = self.loads.size()
         self.num_job_in_batch = self.last_job_in_batch - self.start
         self.current_timestamp = self.loads[self.start].submit_time
@@ -190,7 +190,7 @@ class SLProcessor:
                         break
                 assert job_for_scheduling is not None
                 assert job_for_scheduling_index != -1
-                print("job for scheduling: ", job_for_scheduling, "index", job_for_scheduling_index)
+                # print("job for scheduling: ", job_for_scheduling, "index", job_for_scheduling_index)
 
                 if self.cluster.can_allocated(job_for_scheduling):
                     # print ("check job", self.job_queue[i])
@@ -318,4 +318,5 @@ if __name__ == '__main__':
 
     slp = SLProcessor(workload_file=workload_file)
     with open(output_file, 'w') as f:
-        slp.run_scheduler_to_generate_log(2, f)
+        for i in range(0, 300):
+            slp.run_scheduler_to_generate_log(2, f)

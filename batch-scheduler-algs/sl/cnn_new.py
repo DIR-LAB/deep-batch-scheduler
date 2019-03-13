@@ -191,7 +191,7 @@ def inference(input_tensor_batch, act_dim, n, reuse):
         with tf.variable_scope('conv3_%d' % i, reuse=reuse):
             conv3 = residual_block(layers[-1], 64)
             layers.append(conv3)
-        assert conv3.get_shape().as_list()[1:] == [34, 2, 64]
+        assert conv3.get_shape().as_list()[1:] == [10, 2, 64]  #34 -> 10
 
     with tf.variable_scope('fc', reuse=reuse):
         in_channel = layers[-1].get_shape().as_list()[-1]
@@ -224,11 +224,11 @@ def resnet(x_ph):
     '''
     https://github.com/wenxinxu/resnet-in-tensorflow
     '''
-    x = tf.reshape(x_ph, shape=[-1, 136, 8, 3])
+    x = tf.reshape(x_ph, shape=[-1, 40, 8, 3])
     return inference(x, 64, num_residual_blocks, reuse=False)
 
 def basic_cnn(x_ph):
-    x = tf.reshape(x_ph, shape=[-1, 136, 8, 3])
+    x = tf.reshape(x_ph, shape=[-1, 40, 8, 3])
     conv1 = tf.layers.conv2d(
             inputs=x,
             filters=32,
@@ -255,7 +255,7 @@ def basic_cnn(x_ph):
             pool_size=[2, 2],
             strides=2
     )
-    flat = tf.reshape(pool2, [-1, 34 * 2 * 64])
+    flat = tf.reshape(pool2, [-1, 10 * 2 * 64])
     dense = tf.layers.dense(
             inputs=flat,
             units=1024,
@@ -270,17 +270,24 @@ def basic_cnn(x_ph):
             units=64
     )
 
+def mlp(x):
+    hidden_sizes = list((64,64))+[64]
+    for h in hidden_sizes[:-1]:
+        x = tf.layers.dense(x, units=h, activation=tf.tanh)
+    return tf.layers.dense(x, units=hidden_sizes[-1], activation=None)
+
 if __name__ == '__main__':
 
     if len(sys.argv) != 3:
         print("Usage: python cnn_new.py training-data-path ouput-dir")
         sys.exit()
 
-    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 3264))
+    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 960)) # 3264
     a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
     act_dim = 64
     logits = basic_cnn(x_ph)
     # logits = resnet(x_ph)
+    # logits = mlp(x_ph)
     # labels = tf.one_hot(a_ph, depth=act_dim)
     loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
     optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
@@ -314,8 +321,8 @@ if __name__ == '__main__':
     label_test = label[N_train:]
 
     index = 0
-    batch_size = 100
-    hm_epoch = 50
+    batch_size = 200
+    hm_epoch = 100
 
     def next_batch(index, batch_size):
         if index + batch_size > sample_cnt:
