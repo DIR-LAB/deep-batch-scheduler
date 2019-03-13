@@ -671,6 +671,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='Scheduler-v1') # Scheduler-v1 is the job scheduler env.
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf') # RICC-2010-2
+    parser.add_argument('--model', type=str, default='../../data/lubin-SL-Shortest.txt')
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--steps', type=int, default=1200)
@@ -688,6 +689,6 @@ if __name__ == '__main__':
     log_data_dir = os.path.join(current_dir, '../../data/logs/')
     logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
 
-    hpc_vpg(args.env, workload_file, '../../data/lubin-SL-Shortest.txt', ac_kwargs=dict(), gamma=args.gamma,
+    hpc_vpg(args.env, workload_file, args.model, ac_kwargs=dict(), gamma=args.gamma,
             seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
             logger_kwargs=logger_kwargs)
