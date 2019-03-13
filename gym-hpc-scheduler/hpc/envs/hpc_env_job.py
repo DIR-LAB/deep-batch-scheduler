@@ -121,8 +121,8 @@ class HpcEnvJob(gym.Env):
         # v2: schedule the sequence of jobs using shortest job first.
         self.bsld_fcfs_dict = {}
         while True:
-            self.job_queue.sort(key=lambda j: (j.submit_time))
-            # self.job_queue.sort(key=lambda j: (j.request_time))
+            # self.job_queue.sort(key=lambda j: (j.submit_time))
+            self.job_queue.sort(key=lambda j: (j.run_time))
             get_this_job_scheduled = False
             for i in range(0, MAX_QUEUE_SIZE):
                 if self.job_queue[i].job_id == 0:
@@ -474,7 +474,11 @@ class HpcEnvJob(gym.Env):
                 fcfs += (self.bsld_fcfs_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
             reward = fcfs - mine
-            return [obs, reward, True, None]
+            # print ("fcfs: ", fcfs, "mine", mine)
+            if reward < - 100:
+                return [obs, -1, True, None]
+            else:
+                return [obs, 1, True, None]
         else:
             return [obs, 0, False, None]
 
