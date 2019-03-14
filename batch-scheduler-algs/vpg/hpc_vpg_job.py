@@ -435,7 +435,7 @@ def hpc_vpg(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    mylr = 0.01
+    mylr = 0.001
     lr_decay = 0.998
 
     env = gym.make(env_name)
@@ -674,8 +674,8 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='../../data/lubin-SL-Shortest.txt')
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--steps', type=int, default=1200)
-    parser.add_argument('--epochs', type=int, default=2000)
+    parser.add_argument('--steps', type=int, default=6000)
+    parser.add_argument('--epochs', type=int, default=20000)
     parser.add_argument('--exp_name', type=str, default='hpc-cnn-lubin-2000')
     args = parser.parse_args()
 
