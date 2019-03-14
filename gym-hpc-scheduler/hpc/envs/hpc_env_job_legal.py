@@ -270,7 +270,7 @@ class HpcEnvJobLegal(gym.Env):
         machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
 
         vector = np.zeros(((job_queue_row + machine_row), sq, JOB_FEATURES), dtype=float)
-        # self.job_queue.sort(key=lambda j: j.request_number_of_processors)
+        self.job_queue.sort(key=lambda j: j.submit_time, reverse=True)
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
@@ -334,11 +334,18 @@ class HpcEnvJobLegal(gym.Env):
     def step(self, a):
         # action is a legal job ready for scheduling.
         action = a[0]
-        if action > 63 or action < 0:
-            print("action:", action)
-        if self.job_queue[action].job_id == 0:  # this job should be legal.
-            obs = self.build_observation()
-            return [obs, 0, True, None]
+        self.job_queue.sort(key=lambda j: j.submit_time, reverse=True)
+        valid_job = 0
+        for i in range(0, MAX_QUEUE_SIZE):
+            if self.job_queue[i].job_id > 0:
+                valid_job += 1
+        # print("valid job:", valid_job, "of total", MAX_QUEUE_SIZE)
+        action = action % valid_job
+
+        assert self.job_queue[action].job_id != 0
+        #if self.job_queue[action].job_id == 0:  # this job should be legal.
+        #    obs = self.build_observation()
+        #    return [obs, 0, True, None]
 
         job_for_scheduling = self.job_queue[action]
         job_for_scheduling_index = action
