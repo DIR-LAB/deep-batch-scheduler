@@ -338,7 +338,7 @@ class HpcEnvJobLegal(gym.Env):
             print("action:", action)
         if self.job_queue[action].job_id == 0:  # this job should be legal.
             obs = self.build_observation()
-            return [obs, 0, False, None]
+            return [obs, 0, True, None]
 
         job_for_scheduling = self.job_queue[action]
         job_for_scheduling_index = action
