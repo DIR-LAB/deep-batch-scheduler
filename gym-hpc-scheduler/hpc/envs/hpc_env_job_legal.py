@@ -15,8 +15,8 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 64
-MAX_JOBS_EACH_BATCH = 64
+MAX_QUEUE_SIZE = 16
+MAX_JOBS_EACH_BATCH = 16
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -94,7 +94,7 @@ class HpcEnvJobLegal(gym.Env):
         self.next_arriving_job_idx = self.start + 1
 
         # Generate some running jobs to randomly fill the cluster.
-        '''
+
         q_workloads = []
         running_job_size = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)  # size of running jobs.
         for i in range(running_job_size):
@@ -117,13 +117,13 @@ class HpcEnvJobLegal(gym.Env):
                 q_workloads.append(job_tmp)
             else:
                 break
-        '''
+
         # schedule the sequence of jobs using FCFS. This would be the standard references for this sequence.
         # v2: schedule the sequence of jobs using shortest job first.
         self.bsld_fcfs_dict = {}
         while True:
-            # self.job_queue.sort(key=lambda j: (j.submit_time))
-            self.job_queue.sort(key=lambda j: (j.run_time))
+            self.job_queue.sort(key=lambda j: (j.submit_time))
+            # self.job_queue.sort(key=lambda j: (j.run_time))
             get_this_job_scheduled = False
             for i in range(0, MAX_QUEUE_SIZE):
                 if self.job_queue[i].job_id == 0:
@@ -249,11 +249,11 @@ class HpcEnvJobLegal(gym.Env):
         self.next_arriving_job_idx = self.start + 1
 
         # use the same jobs to fill the cluster.
-        '''
+
         for job_tmp in q_workloads:
             self.running_jobs.append(job_tmp)
             job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
-        '''
+
 
         if DEBUG:
             print("Reset:%s, %d, %s" %
@@ -338,7 +338,7 @@ class HpcEnvJobLegal(gym.Env):
             print("action:", action)
         if self.job_queue[action].job_id == 0:  # this job should be legal.
             obs = self.build_observation()
-            return [obs, -1000, True, None]
+            return [obs, 0, False, None]
 
         job_for_scheduling = self.job_queue[action]
         job_for_scheduling_index = action
@@ -481,7 +481,10 @@ class HpcEnvJobLegal(gym.Env):
                 fcfs += (self.bsld_fcfs_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
             reward = fcfs - mine
-            return [obs, reward, True, None]
+            if reward < (0-100):
+                return [obs, -1, True, None]
+            else:
+                return [obs, 1, True, None]
         else:
             return [obs, 0, False, None]
 

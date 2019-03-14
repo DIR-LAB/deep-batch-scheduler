@@ -7,10 +7,10 @@ import numpy as np
 from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
-MAX_QUEUE_SIZE = 64
+MAX_QUEUE_SIZE = 16
 MAX_MACHINE_SIZE = 256
 
-MAX_JOBS_EACH_BATCH = 64
+MAX_JOBS_EACH_BATCH = 16
 JOB_FEATURES = 3
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -320,5 +320,5 @@ if __name__ == '__main__':
 
     slp = SLProcessor(workload_file=workload_file)
     with open(output_file, 'w') as f:
-        for i in range(0, 60):
+        for i in range(0, 10):
             slp.run_scheduler_to_generate_log(2, f)

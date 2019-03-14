@@ -15,23 +15,18 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 EPS = 1e-8
 
-MAX_QUEUE_SIZE = 64
-MAX_JOBS_EACH_BATCH = 64
+MAX_QUEUE_SIZE = 16
+MAX_JOBS_EACH_BATCH = 16
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
-SAMPLE_ACTIONS = 256
+MLP_SIZE = 256
 
 SEED = 42
 
 # each job has three features: submit_time, request_number_of_processors, request_time/run_time,
 JOB_FEATURES = 3
-
-# ResNet HP
-BN_EPSILON = 0.001
-weight_decay = 0.0002  # scale for l2 regularization
-num_residual_blocks = 5 # How many residual blocks do you want
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -55,248 +50,6 @@ def placeholders_from_spaces(*args):
     return [placeholder_from_space(space) for space in args]
 
 
-# ResNet Architecture
-def activation_summary(x):
-    '''
-    :param x: A Tensor
-    :return: Add histogram summary and scalar summary of the sparsity of the tensor
-    '''
-    tensor_name = x.op.name
-    tf.summary.histogram(tensor_name + '/activations', x)
-    tf.summary.scalar(tensor_name + '/sparsity', tf.nn.zero_fraction(x))
-
-def create_variables(name, shape, initializer=tf.contrib.layers.xavier_initializer(), is_fc_layer=False):
-    '''
-    :param name: A string. The name of the new variable
-    :param shape: A list of dimensions
-    :param initializer: User Xavier as default.
-    :param is_fc_layer: Want to create fc layer variable? May use different weight_decay for fc
-    layers.
-    :return: The created variable
-    '''
-
-    ## TODO: to allow different weight decay to fully connected layer and conv layer
-    regularizer = tf.contrib.layers.l2_regularizer(scale=weight_decay)
-
-    new_variables = tf.get_variable(name, shape=shape, initializer=initializer,
-                                    regularizer=regularizer)
-    return new_variables
-
-def output_layer(input_layer, num_labels):
-    '''
-    :param input_layer: 2D tensor
-    :param num_labels: int. How many output labels in total? (10 for cifar10 and 100 for cifar100)
-    :return: output layer Y = WX + B
-    '''
-    input_dim = input_layer.get_shape().as_list()[-1]
-    fc_w = create_variables(name='fc_weights', shape=[input_dim, num_labels], is_fc_layer=True,
-                            initializer=tf.uniform_unit_scaling_initializer(factor=1.0))
-    fc_b = create_variables(name='fc_bias', shape=[num_labels], initializer=tf.zeros_initializer())
-
-    fc_h = tf.matmul(input_layer, fc_w) + fc_b
-    return fc_h
-
-def batch_normalization_layer(input_layer, dimension):
-    '''
-    Helper function to do batch normalziation
-    :param input_layer: 4D tensor
-    :param dimension: input_layer.get_shape().as_list()[-1]. The depth of the 4D tensor
-    :return: the 4D tensor after being normalized
-    '''
-    mean, variance = tf.nn.moments(input_layer, axes=[0, 1, 2])
-    beta = tf.get_variable('beta', dimension, tf.float32,
-                           initializer=tf.constant_initializer(0.0, tf.float32))
-    gamma = tf.get_variable('gamma', dimension, tf.float32,
-                            initializer=tf.constant_initializer(1.0, tf.float32))
-    bn_layer = tf.nn.batch_normalization(input_layer, mean, variance, beta, gamma, BN_EPSILON)
-
-    return bn_layer
-
-def conv_bn_relu_layer(input_layer, filter_shape, stride):
-    '''
-    A helper function to conv, batch normalize and relu the input tensor sequentially
-    :param input_layer: 4D tensor
-    :param filter_shape: list. [filter_height, filter_width, filter_depth, filter_number]
-    :param stride: stride size for conv
-    :return: 4D tensor. Y = Relu(batch_normalize(conv(X)))
-    '''
-
-    out_channel = filter_shape[-1]
-    filter = create_variables(name='conv', shape=filter_shape)
-
-    conv_layer = tf.nn.conv2d(input_layer, filter, strides=[1, stride, stride, 1], padding='SAME')
-    bn_layer = batch_normalization_layer(conv_layer, out_channel)
-
-    output = tf.nn.relu(bn_layer)
-    return output
-
-def bn_relu_conv_layer(input_layer, filter_shape, stride):
-    '''
-    A helper function to batch normalize, relu and conv the input layer sequentially
-    :param input_layer: 4D tensor
-    :param filter_shape: list. [filter_height, filter_width, filter_depth, filter_number]
-    :param stride: stride size for conv
-    :return: 4D tensor. Y = conv(Relu(batch_normalize(X)))
-    '''
-
-    in_channel = input_layer.get_shape().as_list()[-1]
-
-    bn_layer = batch_normalization_layer(input_layer, in_channel)
-    relu_layer = tf.nn.relu(bn_layer)
-
-    filter = create_variables(name='conv', shape=filter_shape)
-    conv_layer = tf.nn.conv2d(relu_layer, filter, strides=[1, stride, stride, 1], padding='SAME')
-    return conv_layer
-
-def residual_block(input_layer, output_channel, first_block=False):
-    '''
-    Defines a residual block in ResNet
-    :param input_layer: 4D tensor
-    :param output_channel: int. return_tensor.get_shape().as_list()[-1] = output_channel
-    :param first_block: if this is the first residual block of the whole network
-    :return: 4D tensor.
-    '''
-    input_channel = input_layer.get_shape().as_list()[-1]
-
-    # When it's time to "shrink" the image size, we use stride = 2
-    if input_channel * 2 == output_channel:
-        increase_dim = True
-        stride = 2
-    elif input_channel == output_channel:
-        increase_dim = False
-        stride = 1
-    else:
-        raise ValueError('Output and input channel does not match in residual blocks!!!')
-
-    # The first conv layer of the first residual block does not need to be normalized and relu-ed.
-    with tf.variable_scope('conv1_in_block'):
-        if first_block:
-            filter = create_variables(name='conv', shape=[3, 3, input_channel, output_channel])
-            conv1 = tf.nn.conv2d(input_layer, filter=filter, strides=[1, 1, 1, 1], padding='SAME')
-        else:
-            conv1 = bn_relu_conv_layer(input_layer, [3, 3, input_channel, output_channel], stride)
-
-    with tf.variable_scope('conv2_in_block'):
-        conv2 = bn_relu_conv_layer(conv1, [3, 3, output_channel, output_channel], 1)
-
-    # When the channels of input layer and conv2 does not match, we add zero pads to increase the
-    #  depth of input layers
-    if increase_dim is True:
-        pooled_input = tf.nn.avg_pool(input_layer, ksize=[1, 2, 2, 1],
-                                      strides=[1, 2, 2, 1], padding='VALID')
-        padded_input = tf.pad(pooled_input, [[0, 0], [0, 0], [0, 0], [input_channel // 2,
-                                                                      input_channel // 2]])
-    else:
-        padded_input = input_layer
-
-    output = conv2 + padded_input
-    return output
-
-def inference(input_tensor_batch, act_dim, n, reuse):
-    '''
-    The main function that defines the ResNet. total layers = 1 + 2n + 2n + 2n +1 = 6n + 2
-    :param input_tensor_batch: 4D tensor
-    :param n: num_residual_blocks
-    :param reuse: To build train graph, reuse=False. To build validation graph and share weights
-    with train graph, resue=True
-    :return: last layer in the network. Not softmax-ed
-    '''
-
-    layers = []
-    with tf.variable_scope('conv0', reuse=reuse):
-        conv0 = conv_bn_relu_layer(input_tensor_batch, [3, 3, 3, 16], 1)
-        activation_summary(conv0)
-        layers.append(conv0)
-
-    for i in range(n):
-        with tf.variable_scope('conv1_%d' % i, reuse=reuse):
-            if i == 0:
-                conv1 = residual_block(layers[-1], 16, first_block=True)
-            else:
-                conv1 = residual_block(layers[-1], 16)
-            activation_summary(conv1)
-            layers.append(conv1)
-
-    for i in range(n):
-        with tf.variable_scope('conv2_%d' % i, reuse=reuse):
-            conv2 = residual_block(layers[-1], 32)
-            activation_summary(conv2)
-            layers.append(conv2)
-
-    for i in range(n):
-        with tf.variable_scope('conv3_%d' % i, reuse=reuse):
-            conv3 = residual_block(layers[-1], 64)
-            layers.append(conv3)
-        assert conv3.get_shape().as_list()[1:] == [10, 2, 64]
-
-    with tf.variable_scope('fc', reuse=reuse):
-        in_channel = layers[-1].get_shape().as_list()[-1]
-        bn_layer = batch_normalization_layer(layers[-1], in_channel)
-        relu_layer = tf.nn.relu(bn_layer)
-        global_pool = tf.reduce_mean(relu_layer, [1, 2])
-
-        print(global_pool.get_shape().as_list()[-1:])
-        assert global_pool.get_shape().as_list()[-1:] == [64]
-        output = output_layer(global_pool, act_dim)
-        layers.append(output)
-
-    return layers[-1]
-
-def resnet(x_ph, act_dim):
-    '''
-    https://github.com/wenxinxu/resnet-in-tensorflow
-    '''
-    sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
-    job_queue_row = sq
-    machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
-
-    x = tf.reshape(x_ph, shape=[-1, (job_queue_row + machine_row), sq, JOB_FEATURES])
-    return inference(x, act_dim, num_residual_blocks, reuse=False)
-'''
-def basic_cnn(x_ph, act_dim):
-    x = tf.reshape(x_ph, shape=[-1, 40, 8, 3])
-    conv1 = tf.layers.conv2d(
-            inputs=x,
-            filters=32,
-            kernel_size=[3, 3],
-            strides=1,
-            padding='same',
-            activation=tf.nn.relu
-    )
-    pool1 = tf.layers.max_pooling2d(
-            inputs=conv1,
-            pool_size=[2, 2],
-            strides=2
-    )
-    conv2 = tf.layers.conv2d(
-            inputs=pool1,
-            filters=64,
-            kernel_size=[3, 3],
-            strides=1,
-            padding='same',
-            activation=tf.nn.relu
-    )
-    pool2 = tf.layers.max_pooling2d(
-            inputs=conv2,
-            pool_size=[2, 2],
-            strides=2
-    )
-    flat = tf.reshape(pool2, [-1, 10 * 2 * 64])
-    dense = tf.layers.dense(
-            inputs=flat,
-            units=1024,
-            activation=tf.nn.relu
-    )
-    dropout = tf.layers.dropout(
-            inputs=dense,
-            rate=0.5,
-    )
-    return tf.layers.dense(
-            inputs=dropout,
-            units=act_dim
-    )
-
-'''
 # Basic CNN Architecture
 def basic_cnn(x_ph, act_dim):
     sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
@@ -331,7 +84,7 @@ def basic_cnn(x_ph, act_dim):
             pool_size=[2, 2],
             strides=2
     )
-    flat = tf.reshape(pool2, [-1, 10 * 2 * 64])
+    flat = tf.reshape(pool2, [-1, int((job_queue_row + machine_row)/4) * 2 * 64])
     dense = tf.layers.dense(
             inputs=flat,
             units=1024,
@@ -359,25 +112,7 @@ def count_vars(scope=''):
     v = get_vars(scope)
     return sum([np.prod(var.shape.as_list()) for var in v])
 
-def gaussian_likelihood(x, mu, log_std):
-    pre_sum = -0.5 * (((x-mu)/(tf.exp(log_std)+EPS))**2 + 2*log_std + np.log(2*np.pi))
-    return tf.reduce_sum(pre_sum, axis=1)
-
 def discount_cumsum(x, discount):
-    """
-    magic from rllab for computing discounted cumulative sums of vectors.
-
-    input:
-        vector x,
-        [x0,
-         x1,
-         x2]
-
-    output:
-        [x0 + discount * x1 + discount^2 * x2,
-         x1 + discount * x2,
-         x2]
-    """
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
@@ -387,9 +122,8 @@ Policies
 
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    # logits = resnet(x, act_dim)
-    logits = basic_cnn(x, act_dim)
-    # logits = mlp(x, list((64,64,64))+[act_dim], tf.tanh, None)
+    # logits = basic_cnn(x, act_dim)
+    logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -404,9 +138,8 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        # v = tf.squeeze(resnet(x, 1), axis=1)
-        v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        # v = tf.squeeze(mlp(x, list((64,64,64))+[1], tf.tanh, None), axis=1)
+        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
     return logits, pi, logp, logp_pi, v
 
 
@@ -496,8 +229,8 @@ with early stopping based on approximate KL
 
 
 def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
-        steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-1,
-        vf_lr=1e-1, train_pi_iters=60, train_v_iters=80, lam=0.97, max_ep_len=1000,
+        steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-2,
+        vf_lr=1e-2, train_pi_iters=60, train_v_iters=80, lam=0.97, max_ep_len=1000,
         target_kl=0.01, logger_kwargs=dict(), save_freq=10):
     """
 
@@ -574,9 +307,9 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
 
-    #seed += 10000 * proc_id()
-    #tf.set_random_seed(seed)
-    #np.random.seed(seed)
+    seed += 10000 * proc_id()
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
 
     env = gym.make(env_name)
     env.my_init(workload_file=workload_file)
@@ -787,9 +520,9 @@ if __name__ == '__main__':
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')  # RICC-2010-2
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--steps', type=int, default=640)
+    parser.add_argument('--steps', type=int, default=6400)
     parser.add_argument('--epochs', type=int, default=6000)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo')
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-6400')
     args = parser.parse_args()
 
     mpi_fork(1)  # run parallel code with mpi
