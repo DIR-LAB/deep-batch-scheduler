@@ -83,12 +83,12 @@ class SLProcessor:
 
         # @for sorted case: make sure we sort the queue before generating the observation.
         # priority_function = self.scheduler_algs.get(2)  # 2 is the shortest
-        local_all_jobs = list(self.job_queue)
-        local_all_jobs.sort(key=lambda j: j.submit_time, reverse=True)
+        # local_all_jobs = list(self.job_queue)
+        # local_all_jobs.sort(key=lambda j: j.submit_time, reverse=True)
 
         for i in range(0, MAX_QUEUE_SIZE):
-            # job = self.job_queue[i]
-            job = local_all_jobs[i]
+            job = self.job_queue[i]
+            # job = local_all_jobs[i]
 
             submit_time = job.submit_time
             request_processors = job.request_number_of_processors
@@ -320,5 +320,5 @@ if __name__ == '__main__':
 
     slp = SLProcessor(workload_file=workload_file)
     with open(output_file, 'w') as f:
-        for i in range(0, 10):
+        for i in range(0, 1):
             slp.run_scheduler_to_generate_log(2, f)

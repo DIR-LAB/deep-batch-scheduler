@@ -85,9 +85,8 @@ class HpcEnvJobLegal(gym.Env):
         self.scheduled_bsld = {}
 
         # randomly sample a sequence of jobs from workload
-        self.start = random.randint(0, (self.loads.size() - MAX_JOBS_EACH_BATCH))
-        # self.start = random.randint(4030, 4411)
-        self.num_job_in_batch = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+        self.start = random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - MAX_JOBS_EACH_BATCH))
+        self.num_job_in_batch = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue[0] = self.loads[self.start]
@@ -96,12 +95,11 @@ class HpcEnvJobLegal(gym.Env):
         # Generate some running jobs to randomly fill the cluster.
 
         q_workloads = []
-        running_job_size = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)  # size of running jobs.
+        running_job_size = MAX_JOBS_EACH_BATCH # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         for i in range(running_job_size):
-            # req_num_of_processors = random.randint(1, self.loads.max_procs)  # random number of requests
-            req_num_of_processors = self.loads.max_procs / (i + 8)
-            # runtime_of_job = random.randint(self.loads.min_exec_time, self.loads.max_exec_time)  # random execution time
-            runtime_of_job = (self.loads.min_exec_time + self.loads.max_exec_time) / (i + 8)
+            _job = self.loads[self.start - i - 1]
+            req_num_of_processors = _job.request_number_of_processors
+            runtime_of_job = _job.run_time
             job_tmp = Job()
             job_tmp.job_id = (-1 - i)  # to be different from the normal jobs; normal jobs have a job_id >= 0
             job_tmp.request_number_of_processors = req_num_of_processors
@@ -111,8 +109,6 @@ class HpcEnvJobLegal(gym.Env):
                 # assume job was randomly generated
                 # job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
                 job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
-                if DEBUG:
-                    print("In reset, allocate for job, ", job_tmp, " with free nodes: ", self.cluster.free_node)
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
                 q_workloads.append(job_tmp)
             else:
@@ -122,8 +118,8 @@ class HpcEnvJobLegal(gym.Env):
         # v2: schedule the sequence of jobs using shortest job first.
         self.bsld_fcfs_dict = {}
         while True:
-            self.job_queue.sort(key=lambda j: (j.submit_time))
-            # self.job_queue.sort(key=lambda j: (j.run_time))
+            # self.job_queue.sort(key=lambda j: (j.submit_time))
+            self.job_queue.sort(key=lambda j: (j.run_time))
             get_this_job_scheduled = False
             for i in range(0, MAX_QUEUE_SIZE):
                 if self.job_queue[i].job_id == 0:
@@ -270,7 +266,7 @@ class HpcEnvJobLegal(gym.Env):
         machine_row = int(math.ceil(MAX_MACHINE_SIZE / sq))
 
         vector = np.zeros(((job_queue_row + machine_row), sq, JOB_FEATURES), dtype=float)
-        self.job_queue.sort(key=lambda j: j.submit_time, reverse=True)
+        # self.job_queue.sort(key=lambda j: j.submit_time, reverse=True)
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
@@ -334,13 +330,22 @@ class HpcEnvJobLegal(gym.Env):
     def step(self, a):
         # action is a legal job ready for scheduling.
         action = a[0]
-        self.job_queue.sort(key=lambda j: j.submit_time, reverse=True)
-        valid_job = 0
-        for i in range(0, MAX_QUEUE_SIZE):
-            if self.job_queue[i].job_id > 0:
-                valid_job += 1
-        # print("valid job:", valid_job, "of total", MAX_QUEUE_SIZE)
-        action = action % valid_job
+
+        # if current job is illegal, map it to a nearby legal job.
+        if self.job_queue[action].job_id == 0:
+            #print ("action:", action)
+            #[print(j.job_id, end=' ') for j in self.job_queue]
+            picked_job = - (2 * MAX_JOBS_EACH_BATCH)
+            for i in range(0, action):
+                if self.job_queue[action - i - 1].job_id != 0:
+                    picked_job = (action - 1 - i)
+                    break
+            for i in range(action + 1, MAX_QUEUE_SIZE):
+                if self.job_queue[i].job_id != 0:
+                    if (i - action) < (action - picked_job):
+                        picked_job = i
+                    break
+            action = picked_job
 
         assert self.job_queue[action].job_id != 0
         #if self.job_queue[action].job_id == 0:  # this job should be legal.
@@ -487,11 +492,14 @@ class HpcEnvJobLegal(gym.Env):
             for _job in self.scheduled_logs:
                 fcfs += (self.bsld_fcfs_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
-            reward = fcfs - mine
-            if reward < (0-100):
-                return [obs, -1, True, None]
-            else:
+            if mine < 0.9 * fcfs:
+                return [obs, 100, True, None]
+            elif mine < fcfs:
+                return [obs, 10, True, None]
+            elif mine < 1.1 * fcfs:
                 return [obs, 1, True, None]
+            else:
+                return [obs, -1, True, None]
         else:
             return [obs, 0, False, None]
 

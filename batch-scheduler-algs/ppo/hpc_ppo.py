@@ -123,7 +123,7 @@ Policies
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
     # logits = basic_cnn(x, act_dim)
-    logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
+    logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -139,7 +139,7 @@ def actor_critic(x, a, action_space=None):
         logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
         # v = tf.squeeze(basic_cnn(x, 1), axis=1)
-        v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
     return logits, pi, logp, logp_pi, v
 
 
@@ -397,7 +397,7 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
 
     index = 0
     batch_size = 200
-    hm_epoch = 250
+    hm_epoch = 150
 
     def next_batch(index, batch_size):
         if index + batch_size > sample_cnt:

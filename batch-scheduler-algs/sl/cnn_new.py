@@ -271,7 +271,7 @@ def basic_cnn(x_ph):
     )
 
 def mlp(x):
-    hidden_sizes = list((64,64))+[64]
+    hidden_sizes = list((256,256,256))+[64]
     for h in hidden_sizes[:-1]:
         x = tf.layers.dense(x, units=h, activation=tf.tanh)
     return tf.layers.dense(x, units=hidden_sizes[-1], activation=None)
@@ -282,12 +282,12 @@ if __name__ == '__main__':
         print("Usage: python cnn_new.py training-data-path ouput-dir")
         sys.exit()
 
-    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 960)) # 3264
+    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 816)) # 3264 #960
     a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
     act_dim = 64
-    logits = basic_cnn(x_ph)
+    # logits = basic_cnn(x_ph)
     # logits = resnet(x_ph)
-    # logits = mlp(x_ph)
+    logits = mlp(x_ph)
     # labels = tf.one_hot(a_ph, depth=act_dim)
     loss = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
     optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
