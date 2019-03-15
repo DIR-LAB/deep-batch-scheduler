@@ -156,7 +156,8 @@ class SLProcessor:
         self.num_job_in_batch = 0
         self.next_arriving_job_idx = 0
 
-        self.start = np.random.randint(0, (self.loads.size() - MAX_QUEUE_SIZE))
+        # self.start = np.random.randint(0, (self.loads.size() - MAX_QUEUE_SIZE))
+        self.start = 0
         self.last_job_in_batch = self.loads.size()
         self.num_job_in_batch = self.last_job_in_batch - self.start
         self.current_timestamp = self.loads[self.start].submit_time
