@@ -493,9 +493,9 @@ class HpcEnvJobLegal(gym.Env):
                 fcfs += (self.bsld_fcfs_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
             if mine < 0.9 * fcfs:
-                return [obs, 100, True, None]
+                return [obs, 1000, True, None]
             elif mine < fcfs:
-                return [obs, 10, True, None]
+                return [obs, 100, True, None]
             elif mine < 1.1 * fcfs:
                 return [obs, 1, True, None]
             else:
