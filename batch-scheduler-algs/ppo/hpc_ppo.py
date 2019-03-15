@@ -521,9 +521,9 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='../../data/lubin-SL-Shortest.txt')
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--steps', type=int, default=6400)
+    parser.add_argument('--steps', type=int, default=640)
     parser.add_argument('--epochs', type=int, default=6000)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo-6400-unsorted')
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-640-unsorted')
     args = parser.parse_args()
 
     mpi_fork(1)  # run parallel code with mpi
