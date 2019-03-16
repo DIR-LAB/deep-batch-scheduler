@@ -362,13 +362,14 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
     # saver.restore(sess, model_path)
 
     # Directly train it.
-    loss_s = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
-    train_op = optimizer.minimize(loss=loss_s, global_step=tf.train.get_global_step())
+    # loss_s = tf.losses.sparse_softmax_cross_entropy(labels=a_ph, logits=logits)
+    # optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+    # train_op = optimizer.minimize(loss=loss_s, global_step=tf.train.get_global_step())
 
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
 
+    '''
     sample_json = []
     input_s = []
     label_s = []
@@ -430,7 +431,7 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
     print("Accuracy:", accuracy.eval({x_ph: feature_test, y_test: label_test}, session = sess))
 
     print("PreTrain the Model Finish")
-
+    '''
     # Sync params across processes
     sess.run(sync_all_params())
 

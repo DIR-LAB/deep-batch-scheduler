@@ -7,10 +7,10 @@ import numpy as np
 from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
 
-MAX_QUEUE_SIZE = 63
+MAX_QUEUE_SIZE = 15
 MAX_MACHINE_SIZE = 256
 
-MAX_JOBS_EACH_BATCH = 64
+MAX_JOBS_EACH_BATCH = 16
 JOB_FEATURES = 3
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -45,7 +45,7 @@ class SLProcessor:
 
         print("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
-        self.cluster = Cluster("Ricc", self.loads.max_nodes, self.loads.max_procs / self.loads.max_nodes)
+        self.cluster = Cluster("Cluster", self.loads.max_nodes, self.loads.max_procs / self.loads.max_nodes)
 
     def fcfs_priority(self, job):
         return job.submit_time
@@ -85,7 +85,7 @@ class SLProcessor:
         # @for sorted case: make sure we sort the queue before generating the observation.
         # priority_function = self.scheduler_algs.get(2)  # 2 is the shortest
         # local_all_jobs = list(self.job_queue)
-        # local_all_jobs.sort(key=lambda j: (priority_function(j)))
+        # local_all_jobs.sort(key=lambda j: j.submit_time, reverse=True)
 
         for i in range(0, MAX_QUEUE_SIZE):
             job = self.job_queue[i]
@@ -154,7 +154,8 @@ class SLProcessor:
         self.num_job_in_batch = 0
         self.next_arriving_job_idx = 0
 
-        self.start = np.random.randint(0, (self.loads.size() - MAX_QUEUE_SIZE))
+        # self.start = np.random.randint(0, (self.loads.size() - MAX_QUEUE_SIZE))
+        self.start = 0
         self.last_job_in_batch = self.loads.size()
         self.num_job_in_batch = self.last_job_in_batch - self.start
         self.current_timestamp = self.loads[self.start].submit_time
@@ -318,5 +319,5 @@ if __name__ == '__main__':
 
     slp = SLProcessor(workload_file=workload_file)
     with open(output_file, 'w') as f:
-        for i in range(0, 300):
+        for i in range(0, 1):
             slp.run_scheduler_to_generate_log(2, f)

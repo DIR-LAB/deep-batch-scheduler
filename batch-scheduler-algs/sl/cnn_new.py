@@ -282,9 +282,9 @@ if __name__ == '__main__':
         print("Usage: python cnn_new.py training-data-path ouput-dir")
         sys.exit()
 
-    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 816)) # 3264 #960
+    x_ph = tf.placeholder(dtype=tf.float32, shape=(None, 48)) # 3264 #960 #816
     a_ph = tf.placeholder(dtype=tf.int32, shape=(None,))
-    act_dim = 64
+    act_dim = 15
     # logits = basic_cnn(x_ph)
     # logits = resnet(x_ph)
     logits = mlp(x_ph)
