@@ -118,8 +118,8 @@ class HpcEnvJobLegal(gym.Env):
         # v2: schedule the sequence of jobs using shortest job first.
         self.bsld_fcfs_dict = {}
         while True:
-            self.job_queue.sort(key=lambda j: (j.submit_time))
-            # self.job_queue.sort(key=lambda j: (j.run_time))
+            # self.job_queue.sort(key=lambda j: (j.submit_time))
+            self.job_queue.sort(key=lambda j: (j.run_time))
             get_this_job_scheduled = False
             for i in range(0, MAX_QUEUE_SIZE):
                 if self.job_queue[i].job_id == 0:
@@ -492,6 +492,12 @@ class HpcEnvJobLegal(gym.Env):
             for _job in self.scheduled_logs:
                 fcfs += (self.bsld_fcfs_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
+
+            if mine < 1.1 * fcfs:
+                return [obs, 1, True, None]
+            else:
+                return [obs, -1, True, None]
+            '''
             if mine < 0.9 * fcfs:
                 return [obs, 1000, True, None]
             elif mine < fcfs:
@@ -500,6 +506,7 @@ class HpcEnvJobLegal(gym.Env):
                 return [obs, 1, True, None]
             else:
                 return [obs, -1, True, None]
+            '''
         else:
             return [obs, 0, False, None]
 
