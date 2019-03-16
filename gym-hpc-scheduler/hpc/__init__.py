@@ -20,3 +20,9 @@ register(
         entry_point='hpc.envs:HpcEnvJobLegal',
 )
 
+register(
+        id='Scheduler-v4',
+        entry_point='hpc.envs:SimpleHPCEnv',
+)
+
+
