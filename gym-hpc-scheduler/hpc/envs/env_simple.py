@@ -362,7 +362,20 @@ class SimpleHPCEnv(gym.Env):
                 fcfs += (self.bsld_fcfs_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
 
+            # GPU-3
+            if mine <= 0.9 * fcfs:
+                return [obs, 100 * (fcfs - mine), True, None]  # a purely good case indicates huge plus
+            elif mine < fcfs:
+                return [obs, 10 * (fcfs - mine), True, None]  # a good case indicates big plus
+            else:
+                return [obs, (fcfs - mine), True, None]    # a normal case
+
+            # GPU-1
+            '''
             return [obs, (fcfs - mine), True, None]
+            '''
+
+            # GPU-2
             '''
             if mine <= 1 * fcfs:
                 return [obs, 1, True, None]
