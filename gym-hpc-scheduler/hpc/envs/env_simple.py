@@ -362,9 +362,12 @@ class SimpleHPCEnv(gym.Env):
                 fcfs += (self.bsld_fcfs_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
 
+            return [obs, (fcfs - mine), True, None]
+            '''
             if mine <= 1 * fcfs:
                 return [obs, 1, True, None]
             else:
                 return [obs, -1, True, None]
+            '''
         else:
             return [obs, 0, False, None]
