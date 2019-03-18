@@ -15,8 +15,8 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 35
+MAX_QUEUE_SIZE = 15
+MAX_JOBS_EACH_BATCH = 15
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -33,7 +33,7 @@ class SimpleDirectHPCEnv(gym.Env):
     def __init__(self):  # do nothing and return. A workaround for passing parameters to the environment
         super(SimpleDirectHPCEnv, self).__init__()
 
-        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE)
+        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE + 1) # one action that does not schedule any job
         self.observation_space = spaces.Box(low=0.0, high=1.0,
                                             shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
@@ -188,44 +188,47 @@ class SimpleDirectHPCEnv(gym.Env):
     def step(self, a):
         # action is a legal job ready for scheduling.
         action = a[0]
-
-        # if current job is illegal, map it to a nearby legal job.
-        if self.job_queue[action].job_id == 0:
-            picked_job = - (2 * MAX_JOBS_EACH_BATCH)
-            for i in range(0, action):
-                if self.job_queue[action - i - 1].job_id != 0:
-                    picked_job = (action - 1 - i)
-                    break
-            for i in range(action + 1, MAX_QUEUE_SIZE):
-                if self.job_queue[i].job_id != 0:
-                    if (i - action) < (action - picked_job):
-                        picked_job = i
-                    break
-            action = picked_job
-
-        assert self.job_queue[action].job_id != 0
-
-        job_for_scheduling = self.job_queue[action]
-        job_for_scheduling_index = action
-
         get_this_job_scheduled = False
 
-        if self.cluster.can_allocated(job_for_scheduling):
-            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-            job_for_scheduling.scheduled_time = self.current_timestamp
-            if DEBUG:
-                print("In step, schedule a job, ", job_for_scheduling, " with free nodes: ", self.cluster.free_node)
-            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
-                                                                          job_for_scheduling.request_number_of_processors)
-            self.running_jobs.append(job_for_scheduling)
-            self.scheduled_logs.append(job_for_scheduling)
-            get_this_job_scheduled = True
-            _tmp = max(1.0, (float(
-                job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
-                             /
-                             max(job_for_scheduling.run_time, 10)))
-            self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
-            self.job_queue[job_for_scheduling_index] = Job()  # remove the job from job queue
+        # if action is the last item, this means no scheduling, just moving forward the time.
+        if action == MAX_QUEUE_SIZE:
+             get_this_job_scheduled = False
+        else:
+            # if current job is illegal, map it to a nearby legal job.
+            if self.job_queue[action].job_id == 0:
+                picked_job = - (2 * MAX_JOBS_EACH_BATCH)
+                for i in range(0, action):
+                    if self.job_queue[action - i - 1].job_id != 0:
+                        picked_job = (action - 1 - i)
+                        break
+                for i in range(action + 1, MAX_QUEUE_SIZE):
+                    if self.job_queue[i].job_id != 0:
+                        if (i - action) < (action - picked_job):
+                            picked_job = i
+                        break
+                action = picked_job
+
+            # assert self.job_queue[action].job_id != 0
+
+            job_for_scheduling = self.job_queue[action]
+            job_for_scheduling_index = action
+
+            if self.cluster.can_allocated(job_for_scheduling):
+                assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+                job_for_scheduling.scheduled_time = self.current_timestamp
+                if DEBUG:
+                    print("In step, schedule a job, ", job_for_scheduling, " with free nodes: ", self.cluster.free_node)
+                job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                              job_for_scheduling.request_number_of_processors)
+                self.running_jobs.append(job_for_scheduling)
+                self.scheduled_logs.append(job_for_scheduling)
+                get_this_job_scheduled = True
+                _tmp = max(1.0, (float(
+                        job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
+                                 /
+                                 max(job_for_scheduling.run_time, 10)))
+                self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
+                self.job_queue[job_for_scheduling_index] = Job()  # remove the job from job queue
 
         while not get_this_job_scheduled or self._is_job_queue_empty():
             if not self.running_jobs:  # there are no running jobs
