@@ -25,4 +25,8 @@ register(
         entry_point='hpc.envs:SimpleHPCEnv',
 )
 
+register(
+        id='Scheduler-v5',
+        entry_point='hpc.envs:SimpleDirectHPCEnv',
+)
 
