@@ -15,8 +15,8 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 EPS = 1e-8
 
-MAX_QUEUE_SIZE = 15
-MAX_JOBS_EACH_BATCH = 15
+MAX_QUEUE_SIZE = 31
+MAX_JOBS_EACH_BATCH = 31
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -175,8 +175,8 @@ with early stopping based on approximate KL
 
 
 def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
-        steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-2,
-        vf_lr=1e-1, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000000,
+        steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
+        vf_lr=1e-3, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000000,
         target_kl=0.01, logger_kwargs=dict(), save_freq=10):
 
     logger = EpochLogger(**logger_kwargs)
@@ -327,7 +327,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--steps', type=int, default=162000)
     parser.add_argument('--epochs', type=int, default=200)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-direct-162000')
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-direct-162000-Q32')
     args = parser.parse_args()
 
     mpi_fork(1)  # run parallel code with mpi
