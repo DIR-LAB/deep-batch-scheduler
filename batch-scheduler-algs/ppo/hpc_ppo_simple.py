@@ -325,12 +325,13 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='../../data/lubin-SL-Shortest.txt')
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
+    parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=162000)
     parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-direct-162000-Q35')
     args = parser.parse_args()
 
-    mpi_fork(1)  # run parallel code with mpi
+    mpi_fork(args.cpu)  # run parallel code with mpi
 
     from spinup.utils.run_utils import setup_logger_kwargs
 
