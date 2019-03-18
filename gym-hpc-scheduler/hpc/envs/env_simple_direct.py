@@ -86,10 +86,10 @@ class SimpleDirectHPCEnv(gym.Env):
         self.scheduled_bsld = {}
 
         # randomly sample a sequence of jobs from workload
-        # random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * MAX_JOBS_EACH_BATCH))
+        self.start = random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * MAX_JOBS_EACH_BATCH))
         # make sure we restart from the begining again. Always sample at the beginning.
-        self.start = self.deterministic_index + MAX_JOBS_EACH_BATCH
-        self.deterministic_index = (self.deterministic_index + 1) % (self.loads.size() - 2 * MAX_JOBS_EACH_BATCH)
+        # self.start = self.deterministic_index + MAX_JOBS_EACH_BATCH
+        # self.deterministic_index = (self.deterministic_index + 1) % (self.loads.size() - 2 * MAX_JOBS_EACH_BATCH)
         # print("start:", self.start)
 
         self.num_job_in_batch = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
