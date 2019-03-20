@@ -30,3 +30,7 @@ register(
         entry_point='hpc.envs:SimpleDirectHPCEnv',
 )
 
+register(
+        id='Scheduler-Random',
+        entry_point='hpc.envs:SimpleDirectRandomHPCEnv',
+)

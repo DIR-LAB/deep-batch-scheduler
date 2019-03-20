@@ -15,8 +15,8 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 EPS = 1e-8
 
-MAX_QUEUE_SIZE = 15
-MAX_JOBS_EACH_BATCH = 15
+MAX_QUEUE_SIZE = 35
+MAX_JOBS_EACH_BATCH = 35
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -327,7 +327,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=162000)
-    parser.add_argument('--epochs', type=int, default=200)
+    parser.add_argument('--epochs', type=int, default=400)
     parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-direct-162000-Q35')
     args = parser.parse_args()
 

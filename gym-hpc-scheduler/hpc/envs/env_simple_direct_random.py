@@ -15,8 +15,8 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 35
+MAX_QUEUE_SIZE = 15
+MAX_JOBS_EACH_BATCH = 15
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -29,16 +29,16 @@ JOB_FEATURES = 3
 DEBUG = False
 
 
-class SimpleDirectHPCEnv(gym.Env):
+class SimpleDirectRandomHPCEnv(gym.Env):
     def __init__(self):  # do nothing and return. A workaround for passing parameters to the environment
-        super(SimpleDirectHPCEnv, self).__init__()
+        super(SimpleDirectRandomHPCEnv, self).__init__()
 
         self.action_space = spaces.Discrete(MAX_QUEUE_SIZE + 1) # one action that does not schedule any job
         self.observation_space = spaces.Box(low=0.0, high=1.0,
                                             shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
 
-        print("Initialize HPC Env Job")
+        print("Initialize HPC Simple Random Env")
 
         # initialize random state used by the whole system.
         random.seed(SEED)
