@@ -15,8 +15,8 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 EPS = 1e-8
 
-MAX_QUEUE_SIZE = 15
-MAX_JOBS_EACH_BATCH = 15
+MAX_QUEUE_SIZE = 35
+MAX_JOBS_EACH_BATCH = 35
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
