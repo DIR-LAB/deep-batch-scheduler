@@ -15,8 +15,8 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 35
+MAX_QUEUE_SIZE = 15
+MAX_JOBS_EACH_BATCH = 15
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -122,6 +122,35 @@ class SimpleDirectHPCEnv(gym.Env):
         obs = self.build_observation()
         return obs
 
+    def reset_for_test(self):
+        self.cluster.reset()
+        self.loads.reset()
+
+        self.job_queue = []
+        for i in range(0, MAX_QUEUE_SIZE):
+            self.job_queue.append(Job())
+
+        self.running_jobs = []
+        self.current_timestamp = 0
+        self.start = 0
+        self.next_arriving_job_idx = 0
+        self.schedule_logs = []
+        self.last_job_in_batch = 0
+        self.num_job_in_batch = 0
+        self.scheduled_logs = []
+        self.scheduled_bsld = {}
+
+        # make sure we restart from the begining.
+        self.start = 0
+        self.num_job_in_batch = self.loads.size()
+        self.last_job_in_batch = self.start + self.num_job_in_batch
+        self.current_timestamp = self.loads[self.start].submit_time
+        self.job_queue[0] = self.loads[self.start]
+        self.next_arriving_job_idx = self.start + 1
+
+        obs = self.build_observation()
+        return obs
+
     def build_observation(self):
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
         job_queue_row = sq
@@ -153,8 +182,8 @@ class SimpleDirectHPCEnv(gym.Env):
 
             vector[int(i / sq), int(i % sq)] = [normalized_wait_time, normalized_run_time, normalized_request_nodes]
 
+        cpu_avail = 0.0
         for i in range(0, MAX_MACHINE_SIZE):
-            cpu_avail = 0.0
             if self.cluster.all_nodes[i].is_free:
                 cpu_avail += 1.0
             else:
@@ -184,6 +213,102 @@ class SimpleDirectHPCEnv(gym.Env):
             if self.job_queue[i].job_id > 0:
                 size += 1
         return size
+
+    def step_for_test(self, a):
+        action = a[0]
+        get_this_job_scheduled = False
+
+        # if action is the last item, this means no scheduling, just moving forward the time.
+        if action == MAX_QUEUE_SIZE:
+             get_this_job_scheduled = False
+        else:
+            # if current job is illegal, map it to a nearby legal job.
+            if self.job_queue[action].job_id == 0:
+                picked_job = - (2 * MAX_JOBS_EACH_BATCH)
+                for i in range(0, action):
+                    if self.job_queue[action - i - 1].job_id != 0:
+                        picked_job = (action - 1 - i)
+                        break
+                for i in range(action + 1, MAX_QUEUE_SIZE):
+                    if self.job_queue[i].job_id != 0:
+                        if (i - action) < (action - picked_job):
+                            picked_job = i
+                        break
+                action = picked_job
+
+            # assert self.job_queue[action].job_id != 0
+
+            job_for_scheduling = self.job_queue[action]
+            job_for_scheduling_index = action
+
+            if self.cluster.can_allocated(job_for_scheduling):
+                assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+                job_for_scheduling.scheduled_time = self.current_timestamp
+                if DEBUG:
+                    print("In step, schedule a job, ", job_for_scheduling, " with free nodes: ", self.cluster.free_node)
+                job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                              job_for_scheduling.request_number_of_processors)
+                self.running_jobs.append(job_for_scheduling)
+                self.scheduled_logs.append(job_for_scheduling)
+                get_this_job_scheduled = True
+                _tmp = max(1.0, (float(
+                        job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
+                                 /
+                                 max(job_for_scheduling.run_time, 10)))
+                self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp)
+                self.job_queue[job_for_scheduling_index] = Job()  # remove the job from job queue
+
+        while not get_this_job_scheduled or self._is_job_queue_empty():
+            if not self.running_jobs:  # there are no running jobs
+                next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
+                next_resource_release_machines = []
+            else:
+                self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+                next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+                next_resource_release_machines = self.running_jobs[0].allocated_machines
+
+            if self.next_arriving_job_idx < self.last_job_in_batch \
+                    and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time \
+                    and not self._is_job_queue_full():
+
+                for i in range(0, MAX_QUEUE_SIZE):
+                    if self.job_queue[i].job_id == 0:
+                        self.job_queue[i] = self.loads[self.next_arriving_job_idx]
+                        # current timestamp may be larger than next_arriving_job's submit time because job queue was
+                        # full and we move forward to release resources.
+                        self.current_timestamp = max(self.current_timestamp,
+                                                     self.loads[self.next_arriving_job_idx].submit_time)
+                        self.next_arriving_job_idx += 1
+                        break
+            else:
+                if not self.running_jobs:
+                    break
+                self.current_timestamp = next_resource_release_time
+                self.cluster.release(next_resource_release_machines)
+                removed_job = self.running_jobs.pop(0)  # remove the first running job.
+                if DEBUG:
+                    print("In step, release a job, ", removed_job, " generated free nodes: ", self.cluster.free_node)
+
+        obs = self.build_observation()
+
+        done = True
+        for i in range(self.start, self.last_job_in_batch):
+            if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
+                done = False
+                break
+
+        if done:
+            mine = 0.0
+            for _job in self.scheduled_logs:
+                mine += (self.scheduled_bsld[_job.job_id])
+            mine = mine / len(self.scheduled_bsld)
+            return [obs, 0 - mine, True, None]
+        else:
+            mine = 0.0
+            for _job in self.scheduled_logs:
+                mine += (self.scheduled_bsld[_job.job_id])
+            mine = mine / len(self.scheduled_bsld)
+            return [obs, 0 - mine, False, None]
 
     def step(self, a):
         # action is a legal job ready for scheduling.

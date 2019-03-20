@@ -153,8 +153,8 @@ class SimpleDirectRandomHPCEnv(gym.Env):
 
             vector[int(i / sq), int(i % sq)] = [normalized_wait_time, normalized_run_time, normalized_request_nodes]
 
+        cpu_avail = 0.0
         for i in range(0, MAX_MACHINE_SIZE):
-            cpu_avail = 0.0
             if self.cluster.all_nodes[i].is_free:
                 cpu_avail += 1.0
             else:
