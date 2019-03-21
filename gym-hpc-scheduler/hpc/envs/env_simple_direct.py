@@ -237,7 +237,6 @@ class SimpleDirectHPCEnv(gym.Env):
                 action = picked_job
 
             # assert self.job_queue[action].job_id != 0
-
             job_for_scheduling = self.job_queue[action]
             job_for_scheduling_index = action
 
@@ -280,6 +279,7 @@ class SimpleDirectHPCEnv(gym.Env):
                                                      self.loads[self.next_arriving_job_idx].submit_time)
                         self.next_arriving_job_idx += 1
                         break
+                break
             else:
                 if not self.running_jobs:
                     break
@@ -302,13 +302,13 @@ class SimpleDirectHPCEnv(gym.Env):
             for _job in self.scheduled_logs:
                 mine += (self.scheduled_bsld[_job.job_id])
             mine = mine / len(self.scheduled_bsld)
-            return [obs, 0 - mine, True, None]
+            return [obs, 0 - mine, True, get_this_job_scheduled]
         else:
             mine = 0.0
             for _job in self.scheduled_logs:
                 mine += (self.scheduled_bsld[_job.job_id])
             mine = mine / len(self.scheduled_bsld)
-            return [obs, 0 - mine, False, None]
+            return [obs, 0 - mine, False, get_this_job_scheduled]
 
     def step(self, a):
         # action is a legal job ready for scheduling.
@@ -377,6 +377,7 @@ class SimpleDirectHPCEnv(gym.Env):
                                                      self.loads[self.next_arriving_job_idx].submit_time)
                         self.next_arriving_job_idx += 1
                         break
+                break
             else:
                 if not self.running_jobs:
                     break

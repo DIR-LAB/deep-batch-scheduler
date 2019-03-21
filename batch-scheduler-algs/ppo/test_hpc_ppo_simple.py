@@ -13,8 +13,8 @@ import math
 import numpy as np
 import sys
 
-MAX_QUEUE_SIZE = 15
-MAX_JOBS_EACH_BATCH = 15
+MAX_QUEUE_SIZE = 63
+MAX_JOBS_EACH_BATCH = 63
 JOB_FEATURES = 3
 
 
@@ -42,6 +42,16 @@ def load_policy(fpath, env_name, workload_file, itr='last'):
 
     return env, get_action
 
+def smalljf_get_action(obs):
+    jobs = []
+    for i in range(0, MAX_QUEUE_SIZE):
+        normalized_request_nodes = obs[0][i * JOB_FEATURES + 2]
+        if normalized_request_nodes == 0:
+            jobs.append(-1)
+        else:
+            jobs.append(1 - normalized_request_nodes)  # normalized_run_time
+    return [np.argmax(jobs)]
+
 def sjf_get_action(obs):
     jobs = []
     for i in range(0, MAX_QUEUE_SIZE):
@@ -67,19 +77,21 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=1, render=True):
 
     logger = EpochLogger()
     o, r, d, ep_ret, ep_len, n = env.reset_for_test(), 0, False, 0, 0, 0
-    print (o)
     while True:
         # a = get_action(o)
         a = sjf_get_action(o)
-        o, r, d, _ = env.step_for_test(a)
-        print(0 - r)
+        # a = fcfs_get_action(o)
+        # a = smalljf_get_action(o)
+        o, r, d, scheduled = env.step_for_test(a)
+        if scheduled:
+            print(0 - r)
         if d:
             break
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fpath', type=str, default='../../data/models/ppo-simple-direct-162k-q15-empty/ppo-simple-direct-162k-q15-empty_s1/')
+    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-162k-Q35-empty-mpi/hpc-ppo-simple-direct-162k-Q35-empty-mpi_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=0)
