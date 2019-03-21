@@ -15,8 +15,8 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 15
-MAX_JOBS_EACH_BATCH = 15
+MAX_QUEUE_SIZE = 35
+MAX_JOBS_EACH_BATCH = 35
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -164,6 +164,7 @@ class SimpleHPCEnv(gym.Env):
                                                          self.loads[self.next_arriving_job_idx].submit_time)
                             self.next_arriving_job_idx += 1
                             break
+                    break
                 else:
                     if not self.running_jobs:
                         break
@@ -339,6 +340,7 @@ class SimpleHPCEnv(gym.Env):
                                                      self.loads[self.next_arriving_job_idx].submit_time)
                         self.next_arriving_job_idx += 1
                         break
+                break
             else:
                 if not self.running_jobs:
                     break
@@ -363,12 +365,14 @@ class SimpleHPCEnv(gym.Env):
                 mine += (self.scheduled_bsld[_job.job_id])
 
             # GPU-3
+            '''
             if mine <= 0.9 * fcfs:
-                return [obs, 100 * (fcfs - mine), True, None]  # a purely good case indicates huge plus
+                return [obs, 1000 * (fcfs - mine), True, None]  # a purely good case indicates huge plus
             elif mine < fcfs:
-                return [obs, 10 * (fcfs - mine), True, None]  # a good case indicates big plus
+                return [obs, 100 * (fcfs - mine), True, None]  # a good case indicates big plus
             else:
                 return [obs, (fcfs - mine), True, None]    # a normal case
+            '''
 
             # GPU-1
             '''
@@ -376,11 +380,12 @@ class SimpleHPCEnv(gym.Env):
             '''
 
             # GPU-2
-            '''
-            if mine <= 1 * fcfs:
+            if mine <= 0.9 * fcfs:
+                return [obs, 10, True, None]
+            if mine < 1 * fcfs:
                 return [obs, 1, True, None]
             else:
                 return [obs, -1, True, None]
-            '''
+
         else:
             return [obs, 0, False, None]

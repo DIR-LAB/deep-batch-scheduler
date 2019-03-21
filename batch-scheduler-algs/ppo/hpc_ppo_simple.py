@@ -15,8 +15,8 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 EPS = 1e-8
 
-MAX_QUEUE_SIZE = 63
-MAX_JOBS_EACH_BATCH = 63
+MAX_QUEUE_SIZE = 35
+MAX_JOBS_EACH_BATCH = 35
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -320,15 +320,15 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='Scheduler-v5')
+    parser.add_argument('--env', type=str, default='Scheduler-v4')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')  # RICC-2010-2
     parser.add_argument('--model', type=str, default='../../data/lubin-SL-Shortest.txt')
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=162000)
+    parser.add_argument('--steps', type=int, default=16200)
     parser.add_argument('--epochs', type=int, default=800)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-direct-162k-Q63-empty-mpi')
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-162k-Q35-empty-mpi')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
