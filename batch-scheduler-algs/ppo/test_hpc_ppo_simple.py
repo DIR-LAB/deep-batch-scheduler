@@ -78,8 +78,8 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=1, render=True):
     logger = EpochLogger()
     o, r, d, ep_ret, ep_len, n = env.reset_for_test(), 0, False, 0, 0, 0
     while True:
-        # a = get_action(o)
-        a = sjf_get_action(o)
+        a = get_action(o)
+        # a = sjf_get_action(o)
         # a = fcfs_get_action(o)
         # a = smalljf_get_action(o)
         o, r, d, scheduled = env.step_for_test(a)
@@ -91,7 +91,7 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=1, render=True):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-162k-Q35-empty-mpi/hpc-ppo-simple-direct-162k-Q35-empty-mpi_s1/')
+    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-648k-Q63-empty-mpi/hpc-ppo-simple-direct-648k-Q63-empty-mpi_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=0)

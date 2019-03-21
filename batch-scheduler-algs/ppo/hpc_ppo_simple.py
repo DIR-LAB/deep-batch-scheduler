@@ -70,7 +70,7 @@ Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
+    logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -85,7 +85,7 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
     return logits, pi, logp, logp_pi, v
 
 
