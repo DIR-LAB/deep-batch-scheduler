@@ -78,13 +78,13 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=1, render=True):
     logger = EpochLogger()
     o, r, d, ep_ret, ep_len, n = env.reset_for_test(), 0, False, 0, 0, 0
     while True:
-        a = get_action(o)
-        # a = sjf_get_action(o)
+        # a = get_action(o)
+        a = sjf_get_action(o)
         # a = fcfs_get_action(o)
         # a = smalljf_get_action(o)
         o, r, d, scheduled = env.step_for_test(a)
         if scheduled:
-            print(0 - r)
+            print(a[0], "\t", 0 - r)
         if d:
             break
 

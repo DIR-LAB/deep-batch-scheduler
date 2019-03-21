@@ -16,7 +16,7 @@ from hpc.envs.cluster import Cluster
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
 MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 35
+MAX_JOBS_EACH_BATCH = 10 * MAX_QUEUE_SIZE
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -94,7 +94,7 @@ class SimpleHPCEnv(gym.Env):
 
         # Generate some running jobs to randomly fill the cluster.
         q_workloads = []
-        running_job_size = MAX_JOBS_EACH_BATCH # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+        running_job_size = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         for i in range(running_job_size):
             _job = self.loads[self.start - i - 1]
             req_num_of_processors = _job.request_number_of_processors
@@ -382,8 +382,10 @@ class SimpleHPCEnv(gym.Env):
             # GPU-2
             if mine <= 0.9 * fcfs:
                 return [obs, 10, True, None]
-            if mine < 1 * fcfs:
+            elif mine < 1 * fcfs:
                 return [obs, 1, True, None]
+            elif mine == fcfs:
+                return [obs, 0, True, None]
             else:
                 return [obs, -1, True, None]
 
