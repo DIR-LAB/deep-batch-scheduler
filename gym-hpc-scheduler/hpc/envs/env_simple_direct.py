@@ -15,8 +15,8 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 63
-MAX_JOBS_EACH_BATCH = 63
+MAX_QUEUE_SIZE = 35
+MAX_JOBS_EACH_BATCH = 2 * 35
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -122,7 +122,7 @@ class SimpleDirectHPCEnv(gym.Env):
         obs = self.build_observation()
         return obs
 
-    def reset_for_test(self):
+    def reset_for_test(self, start, nums):
         self.cluster.reset()
         self.loads.reset()
 
@@ -141,8 +141,8 @@ class SimpleDirectHPCEnv(gym.Env):
         self.scheduled_bsld = {}
 
         # make sure we restart from the begining.
-        self.start = 0
-        self.num_job_in_batch = self.loads.size()
+        self.start = start # random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * MAX_JOBS_EACH_BATCH))
+        self.num_job_in_batch = nums # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue[0] = self.loads[self.start]
@@ -301,13 +301,13 @@ class SimpleDirectHPCEnv(gym.Env):
             mine = 0.0
             for _job in self.scheduled_logs:
                 mine += (self.scheduled_bsld[_job.job_id])
-            mine = mine / len(self.scheduled_bsld)
+            mine = mine / max(len(self.scheduled_bsld), 1)
             return [obs, 0 - mine, True, get_this_job_scheduled]
         else:
             mine = 0.0
             for _job in self.scheduled_logs:
                 mine += (self.scheduled_bsld[_job.job_id])
-            mine = mine / len(self.scheduled_bsld)
+            mine = mine / max(len(self.scheduled_bsld), 1)
             return [obs, 0 - mine, False, get_this_job_scheduled]
 
     def step(self, a):

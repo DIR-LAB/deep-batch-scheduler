@@ -13,8 +13,8 @@ import math
 import numpy as np
 import sys
 
-MAX_QUEUE_SIZE = 63
-MAX_JOBS_EACH_BATCH = 63
+MAX_QUEUE_SIZE = 35
+MAX_JOBS_EACH_BATCH = 2*35
 JOB_FEATURES = 3
 
 
@@ -68,6 +68,9 @@ def fcfs_get_action(obs):
         jobs.append(obs[0][i * JOB_FEATURES])  # normalized_wait_time
     return [np.argmax(jobs)]
 
+def random_get_action(obs):
+    return [random.randint(0, MAX_QUEUE_SIZE)]
+
 def run_policy(env, get_action, max_ep_len=None, num_episodes=1, render=True):
 
     assert env is not None, \
@@ -75,23 +78,52 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=1, render=True):
         "and we can't run the agent in it. :( \n\n Check out the readthedocs " + \
         "page on Experiment Outputs for how to handle this situation."
 
-    logger = EpochLogger()
-    o, r, d, ep_ret, ep_len, n = env.reset_for_test(), 0, False, 0, 0, 0
-    while True:
-        # a = get_action(o)
-        a = sjf_get_action(o)
-        # a = fcfs_get_action(o)
-        # a = smalljf_get_action(o)
-        o, r, d, scheduled = env.step_for_test(a)
-        if scheduled:
-            print(a[0], "\t", 0 - r)
-        if d:
-            break
+    number_of_better = 0
+    random.seed()
+    for i in range(0, 1000):
+        start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
+        nums = MAX_JOBS_EACH_BATCH # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+
+        model = 0
+        sjf = 0
+
+        o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
+        while True:
+            a = get_action(o)
+            # a = random_get_action(o)
+            # a = sjf_get_action(o)
+            # a = fcfs_get_action(o)
+            # a = smalljf_get_action(o)
+            o, r, d, scheduled = env.step_for_test(a)
+            #if scheduled:
+            #    print(0 - r)
+            if d:
+                # print (0 -r, end=" ")
+                model = 0 - r
+                break
+
+        o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
+        while True:
+            a = sjf_get_action(o)
+            # a = fcfs_get_action(o)
+            # a = smalljf_get_action(o)
+            o, r, d, scheduled = env.step_for_test(a)
+            #if scheduled:
+            #    print(0 - r)
+            if d:
+                # print (0 -r)
+                sjf = 0 - r
+                break
+
+        print("iteration", i, "start", start, "nums", nums, "\t", model, sjf)
+        if model <= 1 * sjf:
+            number_of_better += 1
+    print("better number:", number_of_better)
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-648k-Q63-empty-mpi/hpc-ppo-simple-direct-648k-Q63-empty-mpi_s1/')
+    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-q35-empty-mpi-4*QSIZE/hpc-ppo-simple-162k-q35-empty-mpi-4*QSIZE_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=0)

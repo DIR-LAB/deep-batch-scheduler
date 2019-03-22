@@ -16,7 +16,7 @@ from hpc.envs.cluster import Cluster
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
 MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 4 * MAX_QUEUE_SIZE
+MAX_JOBS_EACH_BATCH = MAX_QUEUE_SIZE
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -380,11 +380,9 @@ class SimpleHPCEnv(gym.Env):
             '''
 
             # GPU-2
-            if mine <= 0.9 * fcfs:
-                return [obs, 10, True, None]
-            elif mine < 1 * fcfs:
+            if mine < 0.95 * fcfs:
                 return [obs, 1, True, None]
-            elif mine == fcfs:
+            elif 0.95 * fcfs <= mine < 1.05 * fcfs:
                 return [obs, 0, True, None]
             else:
                 return [obs, -1, True, None]
