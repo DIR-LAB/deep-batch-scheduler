@@ -16,7 +16,7 @@ from hpc.envs.cluster import Cluster
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
 MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 2 * 35
+MAX_JOBS_EACH_BATCH = 32
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -38,7 +38,7 @@ class SimpleDirectHPCEnv(gym.Env):
                                             shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
 
-        print("Initialize HPC Env Job")
+        print("Initialize Simple Direct HPC Env")
 
         # initialize random state used by the whole system.
         random.seed(SEED)
@@ -122,7 +122,7 @@ class SimpleDirectHPCEnv(gym.Env):
         obs = self.build_observation()
         return obs
 
-    def reset_for_test(self, start, nums):
+    def reset_for_test(self, start, nums, orig = False):
         self.cluster.reset()
         self.loads.reset()
 
@@ -148,8 +148,45 @@ class SimpleDirectHPCEnv(gym.Env):
         self.job_queue[0] = self.loads[self.start]
         self.next_arriving_job_idx = self.start + 1
 
-        obs = self.build_observation()
+        if orig:
+            obs = self.build_observation_orig()
+        else:
+            obs = self.build_observation()
         return obs
+
+    def build_observation_orig(self):
+        sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
+        job_queue_row = sq
+
+        vector = np.zeros((job_queue_row, sq, JOB_FEATURES), dtype=float)
+
+        for i in range(0, MAX_QUEUE_SIZE):
+            job = self.job_queue[i]
+            submit_time = job.submit_time
+            request_processors = job.request_number_of_processors
+            request_time = job.request_time
+            run_time = job.run_time
+
+            vector[int(i / sq), int(i % sq)] = [submit_time, run_time, request_processors]
+
+        cpu_avail = 0.0
+        for i in range(0, MAX_MACHINE_SIZE):
+            if self.cluster.all_nodes[i].is_free:
+                cpu_avail += 1.0
+            else:
+                running_job_id = self.cluster.all_nodes[i].running_job_id
+                running_job = None
+                for _j in self.running_jobs:
+                    if _j.job_id == running_job_id:
+                        running_job = _j
+                        break
+
+                remainded = running_job.scheduled_time + running_job.run_time - self.current_timestamp
+                cpu_avail += max(MAX_RUN_TIME - remainded, 0) / MAX_RUN_TIME
+
+        vector[int(MAX_QUEUE_SIZE / sq), int(MAX_QUEUE_SIZE % sq)] = [(cpu_avail / MAX_MACHINE_SIZE), 0, 0]
+
+        return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1) * JOB_FEATURES])
 
     def build_observation(self):
         sq = int(math.ceil(math.sqrt(MAX_QUEUE_SIZE)))
@@ -214,7 +251,7 @@ class SimpleDirectHPCEnv(gym.Env):
                 size += 1
         return size
 
-    def step_for_test(self, a):
+    def step_for_test(self, a, orgin = False):
         action = a[0]
         get_this_job_scheduled = False
 
@@ -289,7 +326,10 @@ class SimpleDirectHPCEnv(gym.Env):
                 if DEBUG:
                     print("In step, release a job, ", removed_job, " generated free nodes: ", self.cluster.free_node)
 
-        obs = self.build_observation()
+        if orgin:
+            obs = self.build_observation_orig()
+        else:
+            obs = self.build_observation()
 
         done = True
         for i in range(self.start, self.last_job_in_batch):
@@ -301,13 +341,13 @@ class SimpleDirectHPCEnv(gym.Env):
             mine = 0.0
             for _job in self.scheduled_logs:
                 mine += (self.scheduled_bsld[_job.job_id])
-            mine = mine / max(len(self.scheduled_bsld), 1)
+            mine = mine / len(self.scheduled_bsld)
             return [obs, 0 - mine, True, get_this_job_scheduled]
         else:
             mine = 0.0
             for _job in self.scheduled_logs:
                 mine += (self.scheduled_bsld[_job.job_id])
-            mine = mine / max(len(self.scheduled_bsld), 1)
+            mine = mine / len(self.scheduled_bsld)
             return [obs, 0 - mine, False, get_this_job_scheduled]
 
     def step(self, a):
