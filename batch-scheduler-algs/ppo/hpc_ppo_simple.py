@@ -16,7 +16,6 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 EPS = 1e-8
 
 MAX_QUEUE_SIZE = 35
-MAX_MACHINE_SIZE = 256
 MLP_SIZE = 256
 
 # each job has three features: submit_time, request_number_of_processors, request_time/run_time,

@@ -16,7 +16,7 @@ from hpc.envs.cluster import Cluster
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
 MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 2 * MAX_QUEUE_SIZE
+MAX_JOBS_EACH_BATCH = MAX_QUEUE_SIZE
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
