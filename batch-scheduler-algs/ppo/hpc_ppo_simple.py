@@ -321,7 +321,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=162000)
     parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-162k-Q35-empty-mpi')
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-162k-Q35-empty-mpi-[-1,0,1]')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
