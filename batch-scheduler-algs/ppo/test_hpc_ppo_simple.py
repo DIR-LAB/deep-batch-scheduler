@@ -13,8 +13,12 @@ import math
 import numpy as np
 import sys
 
+import matplotlib.pyplot as plt
+plt.rcdefaults()
+
+
 MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 32
+MAX_JOBS_EACH_BATCH = 20 * 32
 JOB_FEATURES = 3
 
 
@@ -73,7 +77,6 @@ def fcfs_get_action(obs):
 def random_get_action(obs):
     return [random.randint(0, MAX_QUEUE_SIZE)]
 
-
 def f1_get_action(orig_obs):
     jobs = []
     for i in range(0, MAX_QUEUE_SIZE):
@@ -86,6 +89,18 @@ def f1_get_action(orig_obs):
             jobs.append(f1_score)
     return [np.argmax(jobs)]
 
+def f2_get_action(orig_obs):
+    jobs = []
+    for i in range(0, MAX_QUEUE_SIZE):
+        [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES : (i+1) * JOB_FEATURES]
+        if submit_time == 0 and run_time == 0 and request_processors == 0:
+            jobs.append(-1)
+        else:
+            # f2: r^(1/2)*n + 25600 * log10(s)
+            f2_score = sys.maxsize - (np.sqrt(run_time) * request_processors + 25600 * np.log10(submit_time))
+            jobs.append(f2_score)
+    return [np.argmax(jobs)]
+
 
 def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, render=True):
 
@@ -96,17 +111,34 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
 
     number_of_better = 0
     number_of_best = 0
+    fcfs_r = []
+    rl_r = []
+    model_r = []
+    sjf_r = []
+    f1_r = []
+    f2_r = []
 
     random.seed()
-    for i in range(0, 1000):
+    for i in range(0, 200):
         start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
         nums = MAX_JOBS_EACH_BATCH # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
 
         model = 0
+        rl = 0
+        fcfs = 0
         sjf = 0
         f1 = 0
+        f2 = 0
         m = 0
         s = 0
+
+        o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
+        while True:
+            a = get_action(o)
+            o, r, d, scheduled = env.step_for_test(a)
+            if d:
+                rl = 0 - r
+                break
 
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
         while True:
@@ -133,10 +165,17 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
 
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
         while True:
+            a = fcfs_get_action(o)
+            o, r, d, scheduled = env.step_for_test(a)
+            if d:
+                fcfs = 0 - r
+                break
+
+        o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
+        while True:
             a = sjf_get_action(o)
             o, r, d, scheduled = env.step_for_test(a)
             if d:
-                # print (0 -r)
                 sjf = 0 - r
                 break
 
@@ -149,19 +188,74 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
                 f1 = 0 - r
                 break
 
-        print("iteration:%4d start:%4d nums:%4d \t %.5f \t %.5f \t %.5f \t %.5f"% (i, start, nums, model, sjf, f1, (m / (m + s))))
-        if model <= 1 * sjf:
+        # F2 obs should be the origin observation
+        o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums, True), 0, False, 0, 0, 0
+        while True:
+            a = f2_get_action(o)
+            o, r, d, scheduled = env.step_for_test(a, True)
+            if d:
+                f2 = 0 - r
+                break
+
+        print("iteration:%4d start:%4d nums:%4d \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f"% (i, start, nums, fcfs, rl, model, sjf, f2, f1, (m / (m + s))))
+
+        model_r.append(model)
+        sjf_r.append(sjf)
+        fcfs_r.append(fcfs)
+        f1_r.append(f1)
+        f2_r.append(f2)
+        rl_r.append(rl)
+
+        if model <= 1.1 * sjf:
             number_of_better += 1
 
-        if model <= 1 * f1:
+        if model <= 1.1 * f1:
             number_of_best += 1
     print("better number:", number_of_better, "best number:", number_of_best)
 
+    # plot
+    all_data = []
+    all_data.append(fcfs_r)
+    all_data.append(rl_r)
+    all_data.append(model_r)
+    all_data.append(sjf_r)
+    all_data.append(f2_r)
+    all_data.append(f1_r)
+
+    all_medians = []
+    for p in all_data:
+        all_medians.append(np.median(p))
+
+    plt.rc("font", size=35)
+    plt.figure(figsize=(16, 14))
+    axes = plt.axes()
+
+    xticks = [y + 1 for y in range(len(all_data))]
+    plt.plot(xticks[0:1], all_data[0:1], 'o', color='darkorange')
+    plt.plot(xticks[1:2], all_data[1:2], 'o', color='darkorange')
+    plt.plot(xticks[2:3], all_data[2:3], 'o', color='darkorange')
+    plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange')
+    plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
+    plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange')
+
+    plt.boxplot(all_data, showfliers=False)
+
+    axes.yaxis.grid(True)
+    axes.set_xticks([y + 1 for y in range(len(all_data))])
+    xticklabels = ['FCFS', 'RL', 'Model', 'SJF', 'F2', 'F1']
+    plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
+             xticklabels=['FCFS', 'RL', 'Model', 'SJF', 'F2', 'F1'])
+
+    plt.tick_params(axis='both', which='major', labelsize=45)
+    plt.tick_params(axis='both', which='minor', labelsize=45)
+
+    plt.show()
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-q35-empty-mpi-v2/hpc-ppo-simple-162k-q35-empty-mpi-v2_s1/')
+    #parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-q35-empty-mpi-v2/hpc-ppo-simple-162k-q35-empty-mpi-v2_s1/')
+    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-Q35-empty-mpi-cnn/hpc-ppo-simple-162k-Q35-empty-mpi-cnn_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=0)

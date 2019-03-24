@@ -109,8 +109,8 @@ Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    # logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
-    logits = basic_cnn(x, act_dim)
+    logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
+    # logits = basic_cnn(x, act_dim)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -125,8 +125,8 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        # v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
-        v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
+        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
     return logits, pi, logp, logp_pi, v
 
 
@@ -368,8 +368,8 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=162000)
-    parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-162k-Q35-empty-mpi-[-1,0,1]')
+    parser.add_argument('--epochs', type=int, default=2000)
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-162k-Q35-empty-mpi-long-batch')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
