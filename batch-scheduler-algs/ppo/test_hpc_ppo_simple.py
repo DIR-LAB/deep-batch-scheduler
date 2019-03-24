@@ -18,7 +18,7 @@ plt.rcdefaults()
 
 
 MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 20 * 32
+MAX_JOBS_EACH_BATCH = 10*32
 JOB_FEATURES = 3
 
 
@@ -119,9 +119,11 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
     f2_r = []
 
     random.seed()
-    for i in range(0, 200):
-        start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
-        nums = MAX_JOBS_EACH_BATCH # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+    for i in range(0, 10):
+        # start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
+        # nums = MAX_JOBS_EACH_BATCH # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+        start = random.randint(300, 1000)
+        nums = 100 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
 
         model = 0
         rl = 0
