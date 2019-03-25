@@ -122,8 +122,8 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
     for i in range(0, 10):
         # start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
         # nums = MAX_JOBS_EACH_BATCH # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
-        start = random.randint(300, 1000)
-        nums = 100 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
+        start = random.randint(300, 8000)
+        nums = 1500 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
 
         model = 0
         rl = 0
@@ -142,11 +142,16 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
                 rl = 0 - r
                 break
 
+        same = 0
+        total = 0
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
         while True:
             v = get_value(o)
             a_m = get_action(o)
             a_s = sjf_get_action(o)
+            if a_m == a_s:
+                same += 1
+            total += 1
             # a = random_get_action(o)
             # a = fcfs_get_action(o)
             # a = smalljf_get_action(o)
@@ -164,6 +169,7 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
                 # print (0 -r, end=" ")
                 model = 0 - r
                 break
+        # print ("Ratio: ", same / total)
 
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
         while True:
@@ -256,8 +262,8 @@ def run_policy(env, get_action, get_value, max_ep_len=None, num_episodes=1, rend
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    #parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-q35-empty-mpi-v2/hpc-ppo-simple-162k-q35-empty-mpi-v2_s1/')
-    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-Q35-empty-mpi-cnn/hpc-ppo-simple-162k-Q35-empty-mpi-cnn_s1/')
+    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-q35-empty-mpi-v2/hpc-ppo-simple-162k-q35-empty-mpi-v2_s1/')
+    # parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-162k-Q35-empty-mpi/hpc-ppo-simple-direct-162k-Q35-empty-mpi_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=0)
