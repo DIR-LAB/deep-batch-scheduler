@@ -201,6 +201,14 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
     # Every step, get: action, value, and logprob
     get_action_ops = [pi, v, logp_pi]
 
+    # Experience buffer
+    local_steps_per_epoch = int(steps_per_epoch / num_procs())
+    buf = PPOBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
+
+    # Count variables
+    var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
+    logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
+
     # PPO objectives
     ratio = tf.exp(logp - logp_old_ph)  # pi(a|s) / pi_old(a|s)
     min_adv = tf.where(adv_ph > 0, (1 + clip_ratio) * adv_ph, (1 - clip_ratio) * adv_ph)
@@ -221,20 +229,8 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
     # load saved model @dongdai
     saver = tf.train.Saver()
     model_path = os.path.join(model_path, 'simple_save')
-    tf.saved_model.loader.load(
-            sess,
-            [tf.saved_model.tag_constants.SERVING],
-            model_path
-    )
+    model = restore_tf_graph(sess, model_path)
     print ("load saved model...")
-
-    # Experience buffer
-    local_steps_per_epoch = int(steps_per_epoch / num_procs())
-    buf = PPOBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
-
-    # Count variables
-    var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
-    logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
 
     sess.run(tf.global_variables_initializer())
 
