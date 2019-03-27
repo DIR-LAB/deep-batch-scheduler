@@ -180,7 +180,7 @@ class SimpleHPCEnv(gym.Env):
         self.job_queue = []
         self.running_jobs = []
         self.current_timestamp = self.loads[self.start].submit_time
-        self.job_queue[0] = self.loads[self.start]
+        self.job_queue.append(self.loads[self.start])
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.next_arriving_job_idx = self.start + 1
 
