@@ -313,7 +313,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='Scheduler-v5')
+    parser.add_argument('--env', type=str, default='Scheduler-v4')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')  # RICC-2010-2
     parser.add_argument('--model', type=str, default='../../data/lubin-SL-Shortest.txt')
     parser.add_argument('--gamma', type=float, default=1)
@@ -321,7 +321,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--steps', type=int, default=128000)
     parser.add_argument('--epochs', type=int, default=10000)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-256k-Q32-empty-mpi-v5')
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-128k-Q32-empty-v4')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi

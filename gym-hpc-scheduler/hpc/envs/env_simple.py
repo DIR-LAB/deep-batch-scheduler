@@ -12,10 +12,6 @@ from hpc.envs.job import Job
 from hpc.envs.job import Workloads
 from hpc.envs.cluster import Cluster
 
-# HPC Batch Scheduler Simulation.
-# 
-# Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
-
 MAX_QUEUE_SIZE = 32
 MAX_JOBS_EACH_BATCH = 256
 MIN_JOBS_EACH_BATCH = 1
@@ -45,17 +41,14 @@ class SimpleHPCEnv(gym.Env):
         random.seed(SEED)
 
         self.job_queue = []
-        for i in range(0, MAX_QUEUE_SIZE):
-            self.job_queue.append(Job())
-        self.pending_job_queue = []
-
         self.running_jobs = []
+
         self.current_timestamp = 0
         self.start = 0
         self.next_arriving_job_idx = 0
-        self.schedule_logs = []
         self.last_job_in_batch = 0
         self.num_job_in_batch = 0
+        self.start_idx_last_reset = MAX_JOBS_EACH_BATCH
 
         self.loads = None
         self.cluster = None
@@ -88,24 +81,21 @@ class SimpleHPCEnv(gym.Env):
         self.loads.reset()
 
         self.job_queue = []
-        for i in range(0, MAX_QUEUE_SIZE):
-            self.job_queue.append(Job())
-        self.pending_job_queue = []
-
         self.running_jobs = []
+
         self.current_timestamp = 0
         self.start = 0
         self.next_arriving_job_idx = 0
-        self.schedule_logs = []
         self.last_job_in_batch = 0
         self.num_job_in_batch = 0
         self.scheduled_logs = []
         self.scheduled_bsld = {}
 
-        job_sequence_size = 8 * (1 + int(self.total_interactions / (32000 * 200))) # 200 epochs
+        job_sequence_size = 8 * (1 + int(self.total_interactions / (16000 * 100))) # 100 epochs
 
-        # randomly sample a sequence of jobs from workload
-        self.start = random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * job_sequence_size))
+        # randomly sample a sequence of jobs from workload random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * job_sequence_size))
+        self.start = (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
+        self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.current_timestamp = self.loads[self.start].submit_time
@@ -114,7 +104,7 @@ class SimpleHPCEnv(gym.Env):
 
         # Generate some running jobs to randomly fill the cluster.
         q_workloads = []
-        running_job_size = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+        running_job_size = MAX_JOBS_EACH_BATCH
         for i in range(running_job_size):
             _job = self.loads[self.start - i - 1]
             req_num_of_processors = _job.request_number_of_processors
@@ -135,27 +125,12 @@ class SimpleHPCEnv(gym.Env):
         # schedule the sequence of jobs using the best heuristic algorithm.
         self.bsld_algo_dict = {}
         while True:
-            job_from_pending_logs = False
             get_this_job_scheduled = False
 
             self.job_queue.sort(key=lambda j: self.f1_score(j))
 
-            for i in range(0, MAX_QUEUE_SIZE):
-                if self.job_queue[i].job_id == 0:
-                    continue
-                else:
-                    job_for_scheduling = self.job_queue[i]
-                    job_for_scheduling_index = i
-                    break
-
-            if self.pending_job_queue:
-                self.pending_job_queue.sort(key=lambda j: self.f1_score(j))
-                if self.pending_job_queue[0].run_time < job_for_scheduling.run_time:
-                    job_for_scheduling = self.pending_job_queue[0]
-                    job_for_scheduling_index = 0
-                    job_from_pending_logs = True
-
-            if self.cluster.can_allocated(job_for_scheduling):
+            if self.cluster.can_allocated(self.job_queue[0]):
+                job_for_scheduling = self.job_queue.pop(0)
                 assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
                 job_for_scheduling.scheduled_time = self.current_timestamp
                 job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
@@ -168,16 +143,7 @@ class SimpleHPCEnv(gym.Env):
                 self.bsld_algo_dict[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
                 get_this_job_scheduled = True
 
-                if job_from_pending_logs:
-                    self.pending_job_queue.pop(job_for_scheduling_index)  # remove the job from pending job queue
-                else:
-                    self.job_queue[job_for_scheduling_index] = Job()  # remove the job from job queue
-                    # see if we can move one job from pending list back to the active job queue
-                    if self.pending_job_queue:
-                        head = self.pending_job_queue.pop(0)
-                        self.job_queue[job_for_scheduling_index] = head
-
-            while not get_this_job_scheduled or self._is_job_queue_empty():
+            while not get_this_job_scheduled or not self.job_queue:
                 if not self.running_jobs:  # there are no running jobs
                     next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
                     next_resource_release_machines = []
@@ -188,18 +154,9 @@ class SimpleHPCEnv(gym.Env):
 
                 if self.next_arriving_job_idx < self.last_job_in_batch \
                         and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-
-                    if self._is_job_queue_full():
-                        self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
-                        self.pending_job_queue.append(self.loads[self.next_arriving_job_idx])
-                        self.next_arriving_job_idx += 1
-                    else:
-                        for i in range(0, MAX_QUEUE_SIZE):
-                            if self.job_queue[i].job_id == 0:
-                                self.job_queue[i] = self.loads[self.next_arriving_job_idx]
-                                self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
-                                self.next_arriving_job_idx += 1
-                                break
+                    self.job_queue.append(self.loads[self.next_arriving_job_idx])
+                    self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                    self.next_arriving_job_idx += 1
                     break
                 else:
                     if not self.running_jobs:
@@ -240,38 +197,26 @@ class SimpleHPCEnv(gym.Env):
         return obs
 
     def build_observation(self):
-        all_jobs = []
-        for job in self.job_queue:
-            all_jobs.append(job)
-        for job in self.pending_job_queue:
-            all_jobs.append(job)
-        all_jobs.sort(key=lambda job: self.f1_score(job))
+        self.job_queue.sort(key=lambda job: self.f1_score(job))
 
         vector = np.zeros((MAX_QUEUE_SIZE + 1) * JOB_FEATURES, dtype=float)
 
         for i in range(0, MAX_QUEUE_SIZE):
-            job = all_jobs[i]
-
-            submit_time = job.submit_time
-            request_processors = job.request_number_of_processors
-            # request_time = job.request_time
-            run_time = job.run_time
-            # not used for now
-            #user_id = job.user_id
-            #group_id = job.group_id
-            #executable_number = job.executable_number
-            #queue_number = job.queue_number
-
-            if job.job_id == 0:
-                wait_time = 0
-            else:
+            if i < len(self.job_queue):
+                job = self.job_queue[i]
+                submit_time = job.submit_time
+                request_processors = job.request_number_of_processors
+                # request_time = job.request_time
+                run_time = job.run_time
                 wait_time = self.current_timestamp - submit_time
-            normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1)
-            # normalized_request_time = min(float(request_time) / float(MAX_RUN_TIME), 1)
-            normalized_run_time = min(float(run_time) / float(MAX_RUN_TIME), 1)
-            normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1)
-
-            vector[i * JOB_FEATURES:(i+1)*JOB_FEATURES] = [normalized_wait_time, normalized_run_time, normalized_request_nodes]
+                normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1)
+                # normalized_request_time = min(float(request_time) / float(MAX_RUN_TIME), 1)
+                normalized_run_time = min(float(run_time) / float(MAX_RUN_TIME), 1)
+                normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1)
+                vector[i * JOB_FEATURES:(i+1)*JOB_FEATURES] = [normalized_wait_time, normalized_run_time, normalized_request_nodes]
+            else:
+                vector[i * JOB_FEATURES:(i+1)*JOB_FEATURES] = [0,0,0]
+            
 
         cpu_avail = 0.0
         for i in range(0, MAX_MACHINE_SIZE):
@@ -292,56 +237,22 @@ class SimpleHPCEnv(gym.Env):
 
         return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1) * JOB_FEATURES])
 
-    def _is_job_queue_empty(self):
-        return all(v.job_id == 0 for v in self.job_queue)
-
-    def _is_job_queue_full(self):
-        return all(v.job_id > 0 for v in self.job_queue)
-
-    def _job_queue_size(self):
-        size = 0
-        for i in range(0, MAX_QUEUE_SIZE):
-            if self.job_queue[i].job_id > 0:
-                size += 1
-        return size
-
     def step(self, a):
         # action is a legal job ready for scheduling.
         action = a[0]
         get_this_job_scheduled = False
         job_for_scheduling = None
         job_for_scheduling_index = -1
-        job_from_pending_logs = False
         self.total_interactions += 1
 
         # if action is the last item, this means no scheduling, just moving forward the time.
         if action == MAX_QUEUE_SIZE:
             get_this_job_scheduled = False
         else:
-            if action < MAX_QUEUE_SIZE:  # we pick job from active job queue
-                # if current job is illegal, map it to a nearby legal job.
-                if self.job_queue[action].job_id == 0:
-                    picked_job = - (2 * MAX_JOBS_EACH_BATCH)
-                    for i in range(0, action):
-                        if self.job_queue[action - i - 1].job_id != 0:
-                            picked_job = (action - 1 - i)
-                            break
-                    for i in range(action + 1, MAX_QUEUE_SIZE):
-                        if self.job_queue[i].job_id != 0:
-                            if (i - action) < (action - picked_job):
-                                picked_job = i
-                            break
-                    action = picked_job
-                job_for_scheduling = self.job_queue[action]
-                job_for_scheduling_index = action
-                job_from_pending_logs = False
-
-            else:  # we pick job from pending job queue
-                # there should not be any illegal job. just pick the one
-                action = action - (MAX_QUEUE_SIZE + 1)
-                job_for_scheduling = self.pending_job_queue[action]
-                job_for_scheduling_index = action
-                job_from_pending_logs = True
+            if action >= len(self.job_queue):  # this is illegal action
+                action = (len(self.job_queue) - 1)
+            job_for_scheduling = self.job_queue[action]
+            job_for_scheduling_index = action
 
             if self.cluster.can_allocated(job_for_scheduling):
                 assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
@@ -356,16 +267,9 @@ class SimpleHPCEnv(gym.Env):
                                  /
                                  max(job_for_scheduling.run_time, 10)))
                 self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
-                if job_from_pending_logs:
-                    self.pending_job_queue.pop(job_for_scheduling_index)  # remove the job from pending job queue
-                else:
-                    self.job_queue[job_for_scheduling_index] = Job()  # remove the job from job queue
-                    # see if we can move one job from pending list back to the active job queue
-                    if self.pending_job_queue:
-                        head = self.pending_job_queue.pop(0)
-                        self.job_queue[job_for_scheduling_index] = head
+                self.job_queue.pop(job_for_scheduling_index)  # remove the job from job queue
 
-        while not get_this_job_scheduled or self._is_job_queue_empty():
+        while not get_this_job_scheduled or not self.job_queue:
             if not self.running_jobs:  # there are no running jobs
                 next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
                 next_resource_release_machines = []
@@ -376,18 +280,10 @@ class SimpleHPCEnv(gym.Env):
 
             if self.next_arriving_job_idx < self.last_job_in_batch \
                     and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-
-                if self._is_job_queue_full():
-                    self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
-                    self.pending_job_queue.append(self.loads[self.next_arriving_job_idx])
-                    self.next_arriving_job_idx += 1
-                else:
-                    for i in range(0, MAX_QUEUE_SIZE):
-                        if self.job_queue[i].job_id == 0:
-                            self.job_queue[i] = self.loads[self.next_arriving_job_idx]
-                            self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
-                            self.next_arriving_job_idx += 1
-                            break
+                
+                self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                self.job_queue.append(self.loads[self.next_arriving_job_idx])
+                self.next_arriving_job_idx += 1
                 break
             else:
                 if not self.running_jobs:
@@ -421,7 +317,6 @@ class SimpleHPCEnv(gym.Env):
             '''
 
             # GPU-1
-            
             return [obs, (algo - mine), True, None]
             
             '''
