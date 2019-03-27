@@ -87,7 +87,7 @@ class SimpleDirectHPCEnv(gym.Env):
         self.scheduled_logs = []
         self.scheduled_bsld = {}
 
-        job_sequence_size = 8 * (1 + int(self.total_interactions / (32000 * 200))) # 200 epochs
+        job_sequence_size = 8 * (1 + int(self.total_interactions / (16000 * 100))) # 100 epochs
         
         self.start = random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * job_sequence_size))
         self.num_job_in_batch = job_sequence_size
