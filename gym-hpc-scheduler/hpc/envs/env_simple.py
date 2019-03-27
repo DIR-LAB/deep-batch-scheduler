@@ -99,7 +99,7 @@ class SimpleHPCEnv(gym.Env):
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.current_timestamp = self.loads[self.start].submit_time
-        self.job_queue[0] = self.loads[self.start]
+        self.job_queue.append(self.loads[self.start])
         self.next_arriving_job_idx = self.start + 1
 
         # Generate some running jobs to randomly fill the cluster.
@@ -178,10 +178,6 @@ class SimpleHPCEnv(gym.Env):
         self.loads.reset()
 
         self.job_queue = []
-        for i in range(0, MAX_QUEUE_SIZE):
-            self.job_queue.append(Job())
-        self.pending_job_queue = []
-
         self.running_jobs = []
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue[0] = self.loads[self.start]
