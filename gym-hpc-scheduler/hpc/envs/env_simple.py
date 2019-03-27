@@ -91,7 +91,7 @@ class SimpleHPCEnv(gym.Env):
         self.scheduled_logs = []
         self.scheduled_bsld = {}
 
-        job_sequence_size = 8 * (1 + int(self.total_interactions / (16000 * 100))) # 100 epochs
+        job_sequence_size = 8 * (1 + int(self.total_interactions / (128000 * 100))) # 100 epochs
 
         # randomly sample a sequence of jobs from workload random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * job_sequence_size))
         self.start = (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
