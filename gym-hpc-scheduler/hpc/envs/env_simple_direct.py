@@ -15,8 +15,8 @@ from hpc.envs.cluster import Cluster
 # 
 # Created by Dong Dai. Licensed on the same terms as the rest of OpenAI Gym.
 
-MAX_QUEUE_SIZE = 255 #16 * 16 - 1
-MAX_JOBS_EACH_BATCH = MAX_QUEUE_SIZE
+MAX_QUEUE_SIZE = 32
+MAX_JOBS_EACH_BATCH = 256
 MIN_JOBS_EACH_BATCH = 1
 MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -61,7 +61,7 @@ class SimpleDirectHPCEnv(gym.Env):
         self.scheduled_logs = []
         self.scheduled_bsld = {}
 
-        self.deterministic_index = 0
+        self.total_interactions = 0
 
     def my_init(self, workload_file=''):
         print("loading workloads from dataset:", workload_file)
@@ -87,14 +87,10 @@ class SimpleDirectHPCEnv(gym.Env):
         self.scheduled_logs = []
         self.scheduled_bsld = {}
 
-        # randomly sample a sequence of jobs from workload
-        self.start = random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * MAX_JOBS_EACH_BATCH))
-        # make sure we restart from the begining again. Always sample at the beginning.
-        # self.start = self.deterministic_index + MAX_JOBS_EACH_BATCH
-        # self.deterministic_index = (self.deterministic_index + 1) % (self.loads.size() - 2 * MAX_JOBS_EACH_BATCH)
-        # print("start:", self.start)
-
-        self.num_job_in_batch = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+        job_sequence_size = 8 * (1 + int(self.total_interactions / (32000 * 200))) # 200 epochs
+        
+        self.start = random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * job_sequence_size))
+        self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue[0] = self.loads[self.start]
@@ -102,7 +98,7 @@ class SimpleDirectHPCEnv(gym.Env):
 
         # Generate some running jobs to randomly fill the cluster.
         q_workloads = []
-        running_job_size = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)  # MAX_JOBS_EACH_BATCH
+        running_job_size = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         for i in range(running_job_size):
             _job = self.loads[self.start - i - 1]
             req_num_of_processors = _job.request_number_of_processors
@@ -114,8 +110,8 @@ class SimpleDirectHPCEnv(gym.Env):
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
                 # assume job was randomly generated
-                # job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
-                job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                # job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
                 q_workloads.append(job_tmp)
             else:
@@ -183,7 +179,7 @@ class SimpleDirectHPCEnv(gym.Env):
             job = self.job_queue[i]
             submit_time = job.submit_time
             request_processors = job.request_number_of_processors
-            request_time = job.request_time
+            # request_time = job.request_time
             run_time = job.run_time
             vector[i * JOB_FEATURES:(i+1)*JOB_FEATURES] = [submit_time, run_time, request_processors]
 
@@ -211,7 +207,7 @@ class SimpleDirectHPCEnv(gym.Env):
             job = self.pending_job_queue[i]
             submit_time = job.submit_time
             request_processors = job.request_number_of_processors
-            request_time = job.request_time
+            # request_time = job.request_time
             run_time = job.run_time
             pending_vector[i * JOB_FEATURES:(i + 1) * JOB_FEATURES] = [submit_time, run_time, request_processors]
 
@@ -219,15 +215,31 @@ class SimpleDirectHPCEnv(gym.Env):
 
         return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1 + pending_job_size) * JOB_FEATURES])
 
+    def f1_score(self, job):
+        submit_time = job.submit_time
+        request_processors = job.request_number_of_processors
+        # request_time = job.request_time
+        run_time = job.run_time
+        if job.job_id == 0:
+            return sys.maxsize
+        return (np.log10(request_processors) * run_time + 870 * np.log10(submit_time))
+
     def build_observation(self):
+        all_jobs = []
+        for job in self.job_queue:
+            all_jobs.append(job)
+        for job in self.pending_job_queue:
+            all_jobs.append(job)
+        all_jobs.sort(key=lambda job: self.f1_score(job))
+        
         vector = np.zeros((MAX_QUEUE_SIZE + 1) * JOB_FEATURES, dtype=float)
 
         for i in range(0, MAX_QUEUE_SIZE):
-            job = self.job_queue[i]
+            job = all_jobs[i]
 
             submit_time = job.submit_time
             request_processors = job.request_number_of_processors
-            request_time = job.request_time
+            # request_time = job.request_time
             run_time = job.run_time
             # not used for now
             #user_id = job.user_id
@@ -369,7 +381,7 @@ class SimpleDirectHPCEnv(gym.Env):
                     break
                 self.current_timestamp = next_resource_release_time
                 self.cluster.release(next_resource_release_machines)
-                removed_job = self.running_jobs.pop(0)  # remove the first running job.
+                self.running_jobs.pop(0)  # remove the first running job.
 
         if orgin:
             obs = self.build_observation_orig()
@@ -402,6 +414,7 @@ class SimpleDirectHPCEnv(gym.Env):
         job_for_scheduling = None
         job_for_scheduling_index = -1
         job_from_pending_logs = False
+        self.total_interactions += 1
 
         # if action is the last item, this means no scheduling, just moving forward the time.
         if action == MAX_QUEUE_SIZE:
@@ -485,7 +498,7 @@ class SimpleDirectHPCEnv(gym.Env):
                     break
                 self.current_timestamp = next_resource_release_time
                 self.cluster.release(next_resource_release_machines)
-                removed_job = self.running_jobs.pop(0)  # remove the first running job.
+                self.running_jobs.pop(0)  # remove the first running job.
 
         obs = self.build_observation()
 
