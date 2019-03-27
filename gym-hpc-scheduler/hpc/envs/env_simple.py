@@ -114,7 +114,7 @@ class SimpleHPCEnv(gym.Env):
 
         # Generate some running jobs to randomly fill the cluster.
         q_workloads = []
-        running_job_size = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+        running_job_size = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         for i in range(running_job_size):
             _job = self.loads[self.start - i - 1]
             req_num_of_processors = _job.request_number_of_processors
@@ -125,8 +125,8 @@ class SimpleHPCEnv(gym.Env):
             job_tmp.run_time = runtime_of_job
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
-                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
-                # job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
+                # job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
                 q_workloads.append(job_tmp)
             else:
@@ -421,10 +421,10 @@ class SimpleHPCEnv(gym.Env):
             '''
 
             # GPU-1
-            '''
-            return [obs, (algo - mine), True, None]
-            '''
             
+            return [obs, (algo - mine), True, None]
+            
+            '''
             # GPU-2
             if mine < 0.95 * algo:
                 return [obs, 1, True, None]
@@ -432,6 +432,6 @@ class SimpleHPCEnv(gym.Env):
                 return [obs, 0, True, None]
             else:
                 return [obs, -1, True, None]
-
+            '''
         else:
             return [obs, 0, False, None]

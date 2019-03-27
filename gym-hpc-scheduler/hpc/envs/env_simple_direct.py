@@ -98,7 +98,7 @@ class SimpleDirectHPCEnv(gym.Env):
 
         # Generate some running jobs to randomly fill the cluster.
         q_workloads = []
-        running_job_size = random.randint(MIN_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
+        running_job_size = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
         for i in range(running_job_size):
             _job = self.loads[self.start - i - 1]
             req_num_of_processors = _job.request_number_of_processors
@@ -110,8 +110,8 @@ class SimpleDirectHPCEnv(gym.Env):
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
                 # assume job was randomly generated
-                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
-                # job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
+                # job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
                 q_workloads.append(job_tmp)
             else:
