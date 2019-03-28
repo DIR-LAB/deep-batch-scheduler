@@ -311,9 +311,10 @@ class SimpleHPCEnv(gym.Env):
             '''
 
             # GPU-1
-            return [obs, (algo - mine), True, None]
-            
             '''
+            return [obs, (algo - mine), True, None]
+            '''
+
             # GPU-2
             if mine < 0.95 * algo:
                 return [obs, 1, True, None]
@@ -321,6 +322,6 @@ class SimpleHPCEnv(gym.Env):
                 return [obs, 0, True, None]
             else:
                 return [obs, -1, True, None]
-            '''
+                
         else:
             return [obs, 0, False, None]
