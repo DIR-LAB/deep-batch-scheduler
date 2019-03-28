@@ -30,7 +30,7 @@ class SimpleHPCEnv(gym.Env):
     def __init__(self):  # do nothing and return. A workaround for passing parameters to the environment
         super(SimpleHPCEnv, self).__init__()
 
-        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE + 1)
+        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE)
         self.observation_space = spaces.Box(low=0.0, high=1.0,
                                             shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
@@ -241,29 +241,25 @@ class SimpleHPCEnv(gym.Env):
         job_for_scheduling_index = -1
         self.total_interactions += 1
 
-        # if action is the last item, this means no scheduling, just moving forward the time.
-        if action == MAX_QUEUE_SIZE:
-            get_this_job_scheduled = False
-        else:
-            if action >= len(self.job_queue):  # this is illegal action
-                action = (len(self.job_queue) - 1)
-            job_for_scheduling = self.job_queue[action]
-            job_for_scheduling_index = action
+        if action >= len(self.job_queue):  # this is illegal action
+            action = (len(self.job_queue) - 1)
+        job_for_scheduling = self.job_queue[action]
+        job_for_scheduling_index = action
 
-            if self.cluster.can_allocated(job_for_scheduling):
-                assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-                job_for_scheduling.scheduled_time = self.current_timestamp
-                job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
-                                                                              job_for_scheduling.request_number_of_processors)
-                self.running_jobs.append(job_for_scheduling)
-                self.scheduled_logs.append(job_for_scheduling)
-                get_this_job_scheduled = True
-                _tmp = max(1.0, (float(
-                        job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
-                                 /
-                                 max(job_for_scheduling.run_time, 10)))
-                self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
-                self.job_queue.pop(job_for_scheduling_index)  # remove the job from job queue
+        if self.cluster.can_allocated(job_for_scheduling):
+            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+            job_for_scheduling.scheduled_time = self.current_timestamp
+            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                            job_for_scheduling.request_number_of_processors)
+            self.running_jobs.append(job_for_scheduling)
+            self.scheduled_logs.append(job_for_scheduling)
+            get_this_job_scheduled = True
+            _tmp = max(1.0, (float(
+                    job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
+                                /
+                                max(job_for_scheduling.run_time, 10)))
+            self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
+            self.job_queue.pop(job_for_scheduling_index)  # remove the job from job queue
 
         while not get_this_job_scheduled or not self.job_queue:
             if not self.running_jobs:  # there are no running jobs
@@ -276,14 +272,16 @@ class SimpleHPCEnv(gym.Env):
 
             if self.next_arriving_job_idx < self.last_job_in_batch \
                     and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-                
+                assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
                 self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
                 self.job_queue.append(self.loads[self.next_arriving_job_idx])
                 self.next_arriving_job_idx += 1
                 break
             else:
                 if not self.running_jobs:
+                    # print("self.next_arriving_job_idx:",self.next_arriving_job_idx,"self.last_job_in_batch:",self.last_job_in_batch)
                     break
+                assert self.current_timestamp <= next_resource_release_time
                 self.current_timestamp = next_resource_release_time
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job.
