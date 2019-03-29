@@ -92,7 +92,7 @@ class SimpleRandomHPCEnv(gym.Env):
         self.scheduled_bsld = {}
 
         count = 1 + int(self.total_interactions / THRESHOLD)
-        stage = np.log2(count) + 1 # increase training phase for larger stage.
+        stage = int(np.log2(count)) + 1 # increase training phase for larger stage.
         job_sequence_size = 8 * stage # 50 epochs is basic.
 
         # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
