@@ -32,5 +32,5 @@ register(
 
 register(
         id='Scheduler-v6',
-        entry_point='hpc.envs:SimpleDirectRandomHPCEnv',
+        entry_point='hpc.envs:SimpleRandomHPCEnv',
 )

@@ -18,6 +18,7 @@ plt.rcdefaults()
 
 
 MAX_QUEUE_SIZE = 32
+MAX_JOBS_EACH_BATCH = 256
 MAX_JOBS_EACH_BATCH = 32
 JOB_FEATURES = 3
 
@@ -122,7 +123,7 @@ def f2_get_action(orig_obs):
     return [np.argmax(jobs)]
 
 
-def run_policy(env, get_action, get_value):
+def run_policy(env, get_action, get_value, nums):
 
     number_of_better = 0
     number_of_best = 0
@@ -133,11 +134,11 @@ def run_policy(env, get_action, get_value):
     f2_r = []
 
     random.seed()
-    for i in range(0, 50):
+    for i in range(0, 10):
         # start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
         # nums = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH) # MAX_JOBS_EACH_BATCH
-        start = random.randint(300, 5000)
-        nums = 128 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
+        # nums = 128 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
+        start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * nums))        
 
         # model = 0
         rl = 0
@@ -279,8 +280,8 @@ if __name__ == '__main__':
     #parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-winloss-128k-Q32-v4/hpc-ppo-simple-winloss-128k-Q32-v4_s1/')
     # parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-162k-Q35-empty-mpi/hpc-ppo-simple-direct-162k-Q35-empty-mpi_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')
-    parser.add_argument('--workload', type=str, default='../../data/lublin-aaroh.swf')
-    parser.add_argument('--len', '-l', type=int, default=0)
+    parser.add_argument('--workload', type=str, default='../../data/ANL-Intrepid-2009-1.swf')
+    parser.add_argument('--len', '-l', type=int, default=128)
     parser.add_argument('--episodes', '-n', type=int, default=100)
     parser.add_argument('--itr', '-i', type=int, default=-1)
     args = parser.parse_args()
@@ -291,4 +292,4 @@ if __name__ == '__main__':
     workload_file = os.path.join(current_dir, args.workload)
 
     env, get_action, get_value = load_policy(args.fpath, args.env, workload_file, args.itr if args.itr >=0 else 'last')
-    run_policy(env, get_action, get_value)
+    run_policy(env, get_action, get_value, args.len)
