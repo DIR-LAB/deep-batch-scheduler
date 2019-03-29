@@ -76,6 +76,15 @@ class SimpleRandomHPCEnv(gym.Env):
             return sys.maxsize
         return (np.log10(request_processors) * run_time + 870 * np.log10(submit_time))
 
+    def sjf_score(self, job):
+        submit_time = job.submit_time
+        request_processors = job.request_number_of_processors
+        # request_time = job.request_time
+        run_time = job.run_time
+        if job.job_id == 0:
+            return sys.maxsize
+        return run_time
+
     def reset(self):
         self.cluster.reset()
         self.loads.reset()
@@ -195,7 +204,8 @@ class SimpleRandomHPCEnv(gym.Env):
         return obs
 
     def build_observation(self):
-        self.job_queue.sort(key=lambda job: self.f1_score(job))
+        # self.job_queue.sort(key=lambda job: self.f1_score(job))
+        self.job_queue.sort(key=lambda j: self.sjf_score(j))
 
         vector = np.zeros((MAX_QUEUE_SIZE + 1) * JOB_FEATURES, dtype=float)
 

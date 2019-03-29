@@ -15,7 +15,6 @@ from hpc.envs.cluster import Cluster
 MAX_QUEUE_SIZE = 32
 MAX_JOBS_EACH_BATCH = 256
 MIN_JOBS_EACH_BATCH = 1
-MAX_MACHINE_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
@@ -215,7 +214,7 @@ class SimpleHPCEnv(gym.Env):
             
 
         cpu_avail = 0.0
-        for i in range(0, MAX_MACHINE_SIZE):
+        for i in range(0, self.cluster.total_node):
             if self.cluster.all_nodes[i].is_free:
                 cpu_avail += 1.0
             else:
@@ -229,7 +228,7 @@ class SimpleHPCEnv(gym.Env):
                 remainded = running_job.scheduled_time + running_job.run_time - self.current_timestamp
                 cpu_avail += max(MAX_RUN_TIME - remainded, 0) / MAX_RUN_TIME
 
-        vector[MAX_QUEUE_SIZE * JOB_FEATURES : (MAX_QUEUE_SIZE + 1) * JOB_FEATURES] = [(cpu_avail / MAX_MACHINE_SIZE), 0, 0]
+        vector[MAX_QUEUE_SIZE * JOB_FEATURES : (MAX_QUEUE_SIZE + 1) * JOB_FEATURES] = [(cpu_avail / self.cluster.total_node), 0, 0]
 
         return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1) * JOB_FEATURES])
 
@@ -322,6 +321,6 @@ class SimpleHPCEnv(gym.Env):
                 return [obs, 0, True, None]
             else:
                 return [obs, -1, True, None]
-                
+
         else:
             return [obs, 0, False, None]
