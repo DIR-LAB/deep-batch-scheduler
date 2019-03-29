@@ -165,7 +165,10 @@ class SimpleDirectHPCEnv(gym.Env):
         return obs
 
     def build_observation_orig(self):
-        vector = np.zeros((len(self.job_queue) + 1) * JOB_FEATURES, dtype=float)
+        if len(self.job_queue) == 0:
+            return []
+
+        vector = np.zeros(len(self.job_queue) * JOB_FEATURES, dtype=float)
         idx = 0
 
         for job in self.job_queue:
@@ -176,24 +179,7 @@ class SimpleDirectHPCEnv(gym.Env):
             vector[idx * JOB_FEATURES:(idx+1)*JOB_FEATURES] = [submit_time, run_time, request_processors]
             idx += 1
 
-        cpu_avail = 0.0
-        for i in range(0, MAX_MACHINE_SIZE):
-            if self.cluster.all_nodes[i].is_free:
-                cpu_avail += 1.0
-            else:
-                running_job_id = self.cluster.all_nodes[i].running_job_id
-                running_job = None
-                for _j in self.running_jobs:
-                    if _j.job_id == running_job_id:
-                        running_job = _j
-                        break
-
-                remainded = running_job.scheduled_time + running_job.run_time - self.current_timestamp
-                cpu_avail += max(MAX_RUN_TIME - remainded, 0) / MAX_RUN_TIME
-
-        vector[idx * JOB_FEATURES:(idx+1)*JOB_FEATURES] = [(cpu_avail / MAX_MACHINE_SIZE), 0, 0]
-
-        return np.reshape(vector, [-1, (len(self.job_queue) + 1) * JOB_FEATURES])
+        return np.reshape(vector, [-1, len(self.job_queue) * JOB_FEATURES])
 
     def f1_score(self, job):
         submit_time = job.submit_time
@@ -245,13 +231,14 @@ class SimpleDirectHPCEnv(gym.Env):
         return np.reshape(vector, [-1, (MAX_QUEUE_SIZE + 1) * JOB_FEATURES])
 
 
-    def step_for_test(self, a, orgin=False):  # just for hurestic methods. Can not called from RL method
+    def step_for_test(self, a, orgin=False):
         action = a[0]
         get_this_job_scheduled = False
         job_for_scheduling = None
         job_for_scheduling_index = -1
 
-        assert action < len(self.job_queue)
+        if action >= len(self.job_queue):  # this is for RL model. Other algorithms should not have illegal action
+            action = (len(self.job_queue) - 1)
         job_for_scheduling = self.job_queue[action]
         job_for_scheduling_index = action
 
@@ -281,7 +268,7 @@ class SimpleDirectHPCEnv(gym.Env):
 
             if self.next_arriving_job_idx < self.last_job_in_batch \
                     and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-
+                assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
                 self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
                 self.job_queue.append(self.loads[self.next_arriving_job_idx])
                 self.next_arriving_job_idx += 1
@@ -289,6 +276,7 @@ class SimpleDirectHPCEnv(gym.Env):
             else:
                 if not self.running_jobs:
                     break
+                assert self.current_timestamp <= next_resource_release_time
                 self.current_timestamp = next_resource_release_time
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job.
@@ -308,6 +296,7 @@ class SimpleDirectHPCEnv(gym.Env):
             mine = 0.0
             for _job in self.scheduled_logs:
                 mine += (self.scheduled_bsld[_job.job_id])
+            mine = mine / max(len(self.scheduled_bsld), 1)
             return [obs, 0 - mine, True, None]
         else:
             return [obs, 0, False, None]
@@ -321,31 +310,27 @@ class SimpleDirectHPCEnv(gym.Env):
         job_for_scheduling_index = -1
         self.total_interactions += 1
 
-        # if action is the last item, this means no scheduling, just moving forward the time.
-        if action == MAX_QUEUE_SIZE:
-             get_this_job_scheduled = False
-        else:
-            if action >= len(self.job_queue):  # this is illegal action
-                action = (len(self.job_queue) - 1)
-            job_for_scheduling = self.job_queue[action]
-            job_for_scheduling_index = action
+        if action >= len(self.job_queue):  # this is illegal action
+            action = (len(self.job_queue) - 1)
+        job_for_scheduling = self.job_queue[action]
+        job_for_scheduling_index = action
 
-            if self.cluster.can_allocated(job_for_scheduling):
-                assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-                job_for_scheduling.scheduled_time = self.current_timestamp
-                if DEBUG:
-                    print("In step, schedule a job, ", job_for_scheduling, " with free nodes: ", self.cluster.free_node)
-                job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
-                                                                              job_for_scheduling.request_number_of_processors)
-                self.running_jobs.append(job_for_scheduling)
-                self.scheduled_logs.append(job_for_scheduling)
-                get_this_job_scheduled = True
-                _tmp = max(1.0, (float(
-                        job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
-                                 /
-                                 max(job_for_scheduling.run_time, 10)))
-                self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
-                self.job_queue.pop(job_for_scheduling_index)  # remove the job from job queue
+        if self.cluster.can_allocated(job_for_scheduling):
+            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+            job_for_scheduling.scheduled_time = self.current_timestamp
+            if DEBUG:
+                print("In step, schedule a job, ", job_for_scheduling, " with free nodes: ", self.cluster.free_node)
+            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                            job_for_scheduling.request_number_of_processors)
+            self.running_jobs.append(job_for_scheduling)
+            self.scheduled_logs.append(job_for_scheduling)
+            get_this_job_scheduled = True
+            _tmp = max(1.0, (float(
+                    job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
+                                /
+                                max(job_for_scheduling.run_time, 10)))
+            self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
+            self.job_queue.pop(job_for_scheduling_index)  # remove the job from job queue
 
         while not get_this_job_scheduled or not self.job_queue:
             if not self.running_jobs:  # there are no running jobs

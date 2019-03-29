@@ -17,8 +17,8 @@ import matplotlib.pyplot as plt
 plt.rcdefaults()
 
 
-MAX_QUEUE_SIZE = 35
-MAX_JOBS_EACH_BATCH = 10*32
+MAX_QUEUE_SIZE = 32
+MAX_JOBS_EACH_BATCH = 32
 JOB_FEATURES = 3
 
 
@@ -52,21 +52,12 @@ def load_policy(fpath, env_name, workload_file, itr='last'):
 def smalljf_get_action(orig_obs):
     total_element = int(len(orig_obs[0]) / JOB_FEATURES)
     jobs = []
-    for i in range(0, MAX_QUEUE_SIZE):
+    for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
         if submit_time == 0 and run_time == 0 and request_processors == 0:
             jobs.append(-1)
         else:
             jobs.append(sys.maxsize - request_processors)
-
-    jobs.append(-1)  # Never Pick No-Scheduling
-    for i in range((MAX_QUEUE_SIZE + 1), total_element):
-        [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            jobs.append(sys.maxsize - request_processors)
-
     return [np.argmax(jobs)]
 
 def sjf_get_action_normal(obs):
@@ -82,47 +73,31 @@ def sjf_get_action_normal(obs):
 def sjf_get_action(orig_obs):
     total_element = int(len(orig_obs[0]) / JOB_FEATURES)
     jobs = []
-    for i in range(0, MAX_QUEUE_SIZE):
+    for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
         if submit_time == 0 and run_time == 0 and request_processors == 0:
             jobs.append(-1)
         else:
             jobs.append(sys.maxsize - run_time)
-    jobs.append(-1)  # Never Pick No-Scheduling
-    for i in range((MAX_QUEUE_SIZE + 1), total_element):
-        [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            jobs.append(sys.maxsize - run_time)
-
     return [np.argmax(jobs)]
 
 
 def fcfs_get_action(orig_obs):
     total_element = int(len(orig_obs[0]) / JOB_FEATURES)
     jobs = []
-    for i in range(0, MAX_QUEUE_SIZE):
+    for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
         if submit_time == 0 and run_time == 0 and request_processors == 0:
             jobs.append(-1)
         else:
             jobs.append(sys.maxsize - submit_time)
-    jobs.append(-1)  # Never Pick No-Scheduling
-    for i in range((MAX_QUEUE_SIZE + 1), total_element):
-        [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            jobs.append(sys.maxsize - submit_time)
-
     return [np.argmax(jobs)]
 
 
 def f1_get_action(orig_obs):
     total_element = int(len(orig_obs[0]) / JOB_FEATURES)
     jobs = []
-    for i in range(0, MAX_QUEUE_SIZE):
+    for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES : (i+1) * JOB_FEATURES]
         if submit_time == 0 and run_time == 0 and request_processors == 0:
             jobs.append(-1)
@@ -130,23 +105,13 @@ def f1_get_action(orig_obs):
             # f1: log10(r)*n + 8.70 * 100 * log10(s)
             f1_score = sys.maxsize - (np.log10(request_processors) * run_time + 870 * np.log10(submit_time))
             jobs.append(f1_score)
-    jobs.append(-1)  # Never Pick No-Scheduling
-    for i in range((MAX_QUEUE_SIZE + 1), total_element):
-        [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            # f1: log10(r)*n + 8.70 * 100 * log10(s)
-            f1_score = sys.maxsize - (np.log10(request_processors) * run_time + 870 * np.log10(submit_time))
-            jobs.append(f1_score)
-
     return [np.argmax(jobs)]
 
 
 def f2_get_action(orig_obs):
     total_element = int(len(orig_obs[0]) / JOB_FEATURES)
     jobs = []
-    for i in range(0, MAX_QUEUE_SIZE):
+    for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES : (i+1) * JOB_FEATURES]
         if submit_time == 0 and run_time == 0 and request_processors == 0:
             jobs.append(-1)
@@ -154,16 +119,6 @@ def f2_get_action(orig_obs):
             # f2: r^(1/2)*n + 25600 * log10(s)
             f2_score = sys.maxsize - (np.sqrt(run_time) * request_processors + 25600 * np.log10(submit_time))
             jobs.append(f2_score)
-    jobs.append(-1)  # Never Pick No-Scheduling
-    for i in range((MAX_QUEUE_SIZE + 1), total_element):
-        [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            # f1: log10(r)*n + 8.70 * 100 * log10(s)
-            f2_score = sys.maxsize - (np.sqrt(run_time) * request_processors + 25600 * np.log10(submit_time))
-            jobs.append(f2_score)
-
     return [np.argmax(jobs)]
 
 
@@ -173,19 +128,18 @@ def run_policy(env, get_action, get_value):
     number_of_best = 0
     fcfs_r = []
     rl_r = []
-    model_r = []
     sjf_r = []
     f1_r = []
     f2_r = []
 
     random.seed()
     for i in range(0, 50):
-        start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
-        nums = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH) # MAX_JOBS_EACH_BATCH
-        # start = random.randint(300, 5000)
-        # nums = 300 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
+        # start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
+        # nums = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH) # MAX_JOBS_EACH_BATCH
+        start = random.randint(300, 5000)
+        nums = 128 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
 
-        model = 0
+        # model = 0
         rl = 0
         fcfs = 0
         sjf = 0
@@ -194,14 +148,16 @@ def run_policy(env, get_action, get_value):
         m = 0
         s = 0
 
+        # RL scheduler.
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
         while True:
             a = get_action(o)
-            o, r, d, scheduled = env.step_for_test(a)
+            o, r, d, _ = env.step_for_test(a)
             if d:
                 rl = 0 - r
                 break
 
+        '''
         same = 0
         total = 0
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
@@ -227,6 +183,7 @@ def run_policy(env, get_action, get_value):
                 model = 0 - r
                 break
         # print ("Ratio: ", same / total)
+        '''
 
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums, True), 0, False, 0, 0, 0
         while True:
@@ -262,19 +219,19 @@ def run_policy(env, get_action, get_value):
                 f2 = 0 - r
                 break
 
-        print("iteration:%4d start:%4d nums:%4d \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f"% (i, start, nums, fcfs, rl, model, sjf, f2, f1, (m / (m + s))))
+        print("iteration:%4d start:%4d nums:%4d \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f"% (i, start, nums, fcfs, rl, sjf, f2, f1))
 
-        model_r.append(model)
+        # model_r.append(model)
         sjf_r.append(sjf)
         fcfs_r.append(fcfs)
         f1_r.append(f1)
         f2_r.append(f2)
         rl_r.append(rl)
 
-        if model <= 1.1 * sjf:
+        if rl <= 1.1 * sjf:
             number_of_better += 1
 
-        if model <= 1.1 * f1:
+        if rl <= 1.1 * f1:
             number_of_best += 1
 
     print("better number:", number_of_better, "best number:", number_of_best)
@@ -283,7 +240,6 @@ def run_policy(env, get_action, get_value):
     all_data = []
     all_data.append(fcfs_r)
     all_data.append(rl_r)
-    all_data.append(model_r)
     all_data.append(sjf_r)
     all_data.append(f2_r)
     all_data.append(f1_r)
@@ -292,7 +248,7 @@ def run_policy(env, get_action, get_value):
     for p in all_data:
         all_medians.append(np.median(p))
 
-    plt.rc("font", size=35)
+    # plt.rc("font", size=35)
     plt.figure(figsize=(16, 14))
     axes = plt.axes()
 
@@ -302,13 +258,12 @@ def run_policy(env, get_action, get_value):
     plt.plot(xticks[2:3], all_data[2:3], 'o', color='darkorange')
     plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange')
     plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
-    plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange')
 
     plt.boxplot(all_data, showfliers=False)
 
     axes.yaxis.grid(True)
     axes.set_xticks([y + 1 for y in range(len(all_data))])
-    xticklabels = ['FCFS', 'RL', 'Model', 'SJF', 'F2', 'F1']
+    xticklabels = ['FCFS', 'RL', 'SJF', 'F2', 'F1']
     plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
              xticklabels=xticklabels)
 
@@ -320,10 +275,11 @@ def run_policy(env, get_action, get_value):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-162k-q35-empty-mpi-v2/hpc-ppo-simple-162k-q35-empty-mpi-v2_s1/')
+    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-128k-Q32-v4/hpc-ppo-simple-128k-Q32-v4_s1/')
+    #parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-winloss-128k-Q32-v4/hpc-ppo-simple-winloss-128k-Q32-v4_s1/')
     # parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-162k-Q35-empty-mpi/hpc-ppo-simple-direct-162k-Q35-empty-mpi_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')
-    parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')
+    parser.add_argument('--workload', type=str, default='../../data/lublin-aaroh.swf')
     parser.add_argument('--len', '-l', type=int, default=0)
     parser.add_argument('--episodes', '-n', type=int, default=100)
     parser.add_argument('--itr', '-i', type=int, default=-1)
@@ -335,4 +291,4 @@ if __name__ == '__main__':
     workload_file = os.path.join(current_dir, args.workload)
 
     env, get_action, get_value = load_policy(args.fpath, args.env, workload_file, args.itr if args.itr >=0 else 'last')
-    run_policy(env, get_action, get_value, args.len, args.episodes, False)
+    run_policy(env, get_action, get_value)
