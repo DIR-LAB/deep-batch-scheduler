@@ -128,8 +128,8 @@ class SimpleRandomHPCEnv(gym.Env):
             job_tmp.run_time = runtime_of_job
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
-                # job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
-                job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                # job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
                 q_workloads.append(job_tmp)
             else:
@@ -272,8 +272,8 @@ class SimpleRandomHPCEnv(gym.Env):
         return obs
 
     def build_observation(self):
-        # self.job_queue.sort(key=lambda job: self.f1_score(job))
-        self.job_queue.sort(key=lambda j: self.sjf_score(j))
+        self.job_queue.sort(key=lambda job: self.f1_score(job))
+        # self.job_queue.sort(key=lambda j: self.sjf_score(j))
 
         vector = np.zeros((MAX_QUEUE_SIZE + 1) * JOB_FEATURES, dtype=float)
 

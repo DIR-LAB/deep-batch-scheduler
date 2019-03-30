@@ -123,7 +123,7 @@ def f2_get_action(orig_obs):
     return [np.argmax(jobs)]
 
 
-def run_policy(env, get_action, get_value, nums):
+def run_policy(env, get_action, get_value, nums, iters):
 
     number_of_better = 0
     number_of_best = 0
@@ -134,7 +134,7 @@ def run_policy(env, get_action, get_value, nums):
     f2_r = []
 
     random.seed()
-    for i in range(0, 10):
+    for i in range(0, iters):
         # start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * MAX_JOBS_EACH_BATCH)) # i + MAX_JOBS_EACH_BATCH
         # nums = random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH) # MAX_JOBS_EACH_BATCH
         # nums = 128 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
@@ -284,7 +284,7 @@ if __name__ == '__main__':
     parser.add_argument('--workload', type=str, default='../../data/ANL-Intrepid-2009-1.swf')
     parser.add_argument('--len', '-l', type=int, default=128)
     parser.add_argument('--episodes', '-n', type=int, default=100)
-    parser.add_argument('--itr', '-i', type=int, default=-1)
+    parser.add_argument('--iter', '-i', type=int, default=10)
     args = parser.parse_args()
 
     random.seed(1)
@@ -292,5 +292,5 @@ if __name__ == '__main__':
     current_dir = os.getcwd()
     workload_file = os.path.join(current_dir, args.workload)
 
-    env, get_action, get_value = load_policy(args.fpath, args.env, workload_file, args.itr if args.itr >=0 else 'last')
-    run_policy(env, get_action, get_value, args.len)
+    env, get_action, get_value = load_policy(args.fpath, args.env, workload_file, 'last')
+    run_policy(env, get_action, get_value, args.len, args.iter)
