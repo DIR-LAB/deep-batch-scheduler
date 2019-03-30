@@ -18,7 +18,7 @@ MIN_JOBS_EACH_BATCH = 1
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
-THRESHOLD = (256000 * 50)
+THRESHOLD = (25600 * 50) # 10 processes
 SEED = 42
 
 # each job has three features: submit_time, request_number_of_processors, request_time/run_time,
@@ -53,6 +53,8 @@ class SimpleRandomHPCEnv(gym.Env):
         self.loads = None
         self.cluster = None
         self.bsld_algo_dict = {}
+        self.bsld_algo2_dict = {}
+
         self.scheduled_logs = []
         self.scheduled_bsld = {}
 
@@ -152,6 +154,72 @@ class SimpleRandomHPCEnv(gym.Env):
                                     /
                                     max(job_for_scheduling.run_time, 10)))
                 self.bsld_algo_dict[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
+                get_this_job_scheduled = True
+
+            while not get_this_job_scheduled or not self.job_queue:
+                if not self.running_jobs:  # there are no running jobs
+                    next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
+                    next_resource_release_machines = []
+                else:
+                    self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+                    next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+                    next_resource_release_machines = self.running_jobs[0].allocated_machines
+
+                if self.next_arriving_job_idx < self.last_job_in_batch \
+                        and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
+                    self.job_queue.append(self.loads[self.next_arriving_job_idx])
+                    self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                    self.next_arriving_job_idx += 1
+                    break
+                else:
+                    if not self.running_jobs:
+                        break
+                    self.current_timestamp = next_resource_release_time
+                    self.cluster.release(next_resource_release_machines)
+                    self.running_jobs.pop(0)  # remove the first running job.
+
+            done = True
+            for i in range(self.start, self.last_job_in_batch):
+                if self.loads[i].scheduled_time == -1:  # have at least one job in the batch who has not been scheduled
+                    done = False
+                    break
+            if done:
+                break
+
+        # reset again
+        self.cluster.reset()
+        self.loads.reset()
+        self.job_queue = []
+        self.running_jobs = []
+        self.current_timestamp = self.loads[self.start].submit_time
+        self.job_queue.append(self.loads[self.start])
+        self.last_job_in_batch = self.start + self.num_job_in_batch
+        self.next_arriving_job_idx = self.start + 1
+
+        # use the same jobs to fill the cluster.
+        for job_tmp in q_workloads:
+            self.running_jobs.append(job_tmp)
+            job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
+
+        # schedule using the second algorithm
+        self.bsld_algo2_dict = {}
+        while True:
+            get_this_job_scheduled = False
+
+            self.job_queue.sort(key=lambda j: self.sjf_score(j))
+
+            if self.cluster.can_allocated(self.job_queue[0]):
+                job_for_scheduling = self.job_queue.pop(0)
+                assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+                job_for_scheduling.scheduled_time = self.current_timestamp
+                job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                            job_for_scheduling.request_number_of_processors)
+                self.running_jobs.append(job_for_scheduling)
+                _tmp = max(1.0, (float(
+                    job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
+                                    /
+                                    max(job_for_scheduling.run_time, 10)))
+                self.bsld_algo2_dict[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
                 get_this_job_scheduled = True
 
             while not get_this_job_scheduled or not self.job_queue:
@@ -306,10 +374,12 @@ class SimpleRandomHPCEnv(gym.Env):
                 done = False
                 break
         if done:
-            algo = 0.0
+            algo1 = 0.0
+            algo2 = 0.0
             mine = 0.0
             for _job in self.scheduled_logs:
-                algo += (self.bsld_algo_dict[_job.job_id])
+                algo1 += (self.bsld_algo_dict[_job.job_id])
+                alog2 += (self.bsld_algo2_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
 
             # GPU-3
@@ -323,7 +393,7 @@ class SimpleRandomHPCEnv(gym.Env):
             '''
 
             # GPU-1
-            return [obs, (algo - mine), True, None]
+            return [obs, (min(algo1, algo2) - mine), True, None]
             
             ''''
             # GPU-2
