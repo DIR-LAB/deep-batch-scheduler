@@ -379,7 +379,7 @@ class SimpleRandomHPCEnv(gym.Env):
             mine = 0.0
             for _job in self.scheduled_logs:
                 algo1 += (self.bsld_algo_dict[_job.job_id])
-                alog2 += (self.bsld_algo2_dict[_job.job_id])
+                algo2 += (self.bsld_algo2_dict[_job.job_id])
                 mine += (self.scheduled_bsld[_job.job_id])
 
             # GPU-3
