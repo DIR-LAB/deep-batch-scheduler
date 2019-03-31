@@ -132,6 +132,7 @@ def run_policy(env, get_action, get_value, nums, iters):
     sjf_r = []
     f1_r = []
     f2_r = []
+    model_r = []
 
     random.seed()
     for i in range(0, iters):
@@ -140,7 +141,7 @@ def run_policy(env, get_action, get_value, nums, iters):
         # nums = 128 #env.loads.size() - 2 * MAX_JOBS_EACH_BATCH
         start = random.randint(MAX_JOBS_EACH_BATCH, (env.loads.size() - 2 * nums))        
 
-        # model = 0
+        model = 0
         rl = 0
         fcfs = 0
         sjf = 0
@@ -158,14 +159,14 @@ def run_policy(env, get_action, get_value, nums, iters):
                 rl = 0 - r
                 break
 
-        '''
+        
         same = 0
         total = 0
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums), 0, False, 0, 0, 0
         while True:
             v = get_value(o)
             a_m = get_action(o)
-            a_s = sjf_get_action_normal(o)
+            a_s = [0]
             if a_m == a_s:
                 same += 1
             total += 1
@@ -176,15 +177,12 @@ def run_policy(env, get_action, get_value, nums, iters):
             else:
                 a = a_m
                 m += 1
-            o, r, d, scheduled = env.step_for_test(a)
-            #if scheduled:
-            #    print(0 - r, v)
+            o, r, d, _ = env.step_for_test(a)
             if d:
-                # print (0 -r, end=" ")
                 model = 0 - r
                 break
-        # print ("Ratio: ", same / total)
-        '''
+        print ("Ratio: ", same / total)
+        
 
         o, r, d, ep_ret, ep_len, n = env.reset_for_test(start, nums, True), 0, False, 0, 0, 0
         while True:
@@ -220,19 +218,19 @@ def run_policy(env, get_action, get_value, nums, iters):
                 f2 = 0 - r
                 break
 
-        print("iteration:%4d start:%4d nums:%4d \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f"% (i, start, nums, fcfs, rl, sjf, f2, f1))
+        print("iteration:%4d start:%4d nums:%4d \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f"% (i, start, nums, fcfs, rl, model, sjf, f2, f1))
 
-        # model_r.append(model)
+        model_r.append(model)
         sjf_r.append(sjf)
         fcfs_r.append(fcfs)
         f1_r.append(f1)
         f2_r.append(f2)
         rl_r.append(rl)
 
-        if rl <= 1.1 * sjf:
+        if model <= 1.1 * sjf:
             number_of_better += 1
 
-        if rl <= 1.1 * f1:
+        if model <= 1.1 * f1:
             number_of_best += 1
 
     print("better number:", number_of_better, "best number:", number_of_best)
@@ -241,6 +239,7 @@ def run_policy(env, get_action, get_value, nums, iters):
     all_data = []
     #all_data.append(fcfs_r)
     all_data.append(rl_r)
+    all_data.append(model_r)
     all_data.append(sjf_r)
     all_data.append(f2_r)
     all_data.append(f1_r)
@@ -258,14 +257,14 @@ def run_policy(env, get_action, get_value, nums, iters):
     plt.plot(xticks[1:2], all_data[1:2], 'o', color='darkorange')
     plt.plot(xticks[2:3], all_data[2:3], 'o', color='darkorange')
     plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange')
-    #plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
+    plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
 
     plt.boxplot(all_data, showfliers=False)
 
     axes.yaxis.grid(True)
     axes.set_xticks([y + 1 for y in range(len(all_data))])
     #xticklabels = ['FCFS', 'RL', 'SJF', 'F2', 'F1']
-    xticklabels = ['RL', 'SJF', 'F2', 'F1']
+    xticklabels = ['RL', 'MODEL', 'SJF', 'F2', 'F1']
     plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
              xticklabels=xticklabels)
 
