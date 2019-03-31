@@ -18,7 +18,7 @@ MIN_JOBS_EACH_BATCH = 1
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
-THRESHOLD = (25600 * 50) # 10 processes
+THRESHOLD = (25600 * 100) # 10 processes
 SEED = 42
 
 # each job has three features: submit_time, request_number_of_processors, request_time/run_time,

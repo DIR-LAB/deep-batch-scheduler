@@ -232,7 +232,8 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
     sess.run(sync_all_params())
 
     # Setup model saving
-    logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'pi': pi, 'v': v})
+    # logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'pi': pi, 'v': v})
+    logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'pi': pi, 'v': v, 'logits': logits})
 
     def update():
         inputs = {k: v for k, v in zip(all_phs, buf.get())}
