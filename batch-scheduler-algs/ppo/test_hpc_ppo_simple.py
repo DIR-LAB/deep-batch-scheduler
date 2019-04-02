@@ -276,7 +276,7 @@ def run_policy(env, get_action, get_value, nums, iters):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-128k-Q32-v4/hpc-ppo-simple-128k-Q32-v4_s1/')
+    parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-128k-Q32-v4-950/hpc-ppo-simple-128k-Q32-v4_s1/')
     #parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-winloss-128k-Q32-v4/hpc-ppo-simple-winloss-128k-Q32-v4_s1/')
     # parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-162k-Q35-empty-mpi/hpc-ppo-simple-direct-162k-Q35-empty-mpi_s1/')
     parser.add_argument('--env', type=str, default='Scheduler-v5')

@@ -101,12 +101,13 @@ class SimpleRandomHPCEnv(gym.Env):
         self.scheduled_logs = []
         self.scheduled_bsld = {}
 
-        count = 1 + int(self.total_interactions / THRESHOLD)
-        stage = int(np.log2(count)) + 1 # increase training phase for larger stage.
-        job_sequence_size = 16 * stage # 50 epochs is basic.
+        #count = 1 + int(self.total_interactions / THRESHOLD)
+        #stage = int(np.log2(count)) + 1 # increase training phase for larger stage.
+        #job_sequence_size = 16 * stage # 50 epochs is basic.
+        job_sequence_size = 64
 
         # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
-        self.start = random.randint(MAX_JOBS_EACH_BATCH, (self.loads.size() - 2 * job_sequence_size))
+        self.start = random.randint(job_sequence_size, (self.loads.size() - 2 * job_sequence_size))
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
@@ -116,7 +117,7 @@ class SimpleRandomHPCEnv(gym.Env):
 
         # Generate some running jobs to randomly fill the cluster.
         q_workloads = []
-        running_job_size = MAX_JOBS_EACH_BATCH
+        running_job_size = int(job_sequence_size/2)
         for i in range(running_job_size):
             _job = self.loads[self.start - i - 1]
             req_num_of_processors = _job.request_number_of_processors
