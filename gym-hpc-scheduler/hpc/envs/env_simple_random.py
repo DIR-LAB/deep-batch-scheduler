@@ -116,6 +116,7 @@ class SimpleRandomHPCEnv(gym.Env):
         self.next_arriving_job_idx = self.start + 1
 
         # Generate some running jobs to randomly fill the cluster.
+        # @todo: let's change the running_job_size to a random number.
         q_workloads = []
         running_job_size = int(job_sequence_size/2)
         for i in range(running_job_size):
