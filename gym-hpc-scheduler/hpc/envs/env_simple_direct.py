@@ -139,6 +139,7 @@ class SimpleDirectHPCEnv(gym.Env):
         self.job_queue.append(self.loads[self.start])
         self.next_arriving_job_idx = self.start + 1
 
+        '''
         # use previous jobs to fill the cluster.
         q_workloads = []
         running_job_size = MAX_JOBS_EACH_BATCH  # random.randint(MAX_JOBS_EACH_BATCH, MAX_JOBS_EACH_BATCH)
@@ -157,7 +158,8 @@ class SimpleDirectHPCEnv(gym.Env):
                 q_workloads.append(job_tmp)
             else:
                 break
-
+        '''
+        
         if orig:
             obs = self.build_observation_orig()
         else:
