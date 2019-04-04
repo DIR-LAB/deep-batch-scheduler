@@ -57,11 +57,8 @@ def smalljf_get_action(orig_obs):
     jobs = []
     for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            jobs.append(sys.maxsize - request_processors)
-    return [np.argmax(jobs)]
+        jobs.append(request_processors)
+    return [np.argmin(jobs)]
 
 def sjf_get_action_normal(obs):
     jobs = []
@@ -78,11 +75,8 @@ def sjf_get_action(orig_obs):
     jobs = []
     for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            jobs.append(sys.maxsize - run_time)
-    return [np.argmax(jobs)]
+        jobs.append(run_time)
+    return [np.argmin(jobs)]
 
 
 def fcfs_get_action(orig_obs):
@@ -90,11 +84,8 @@ def fcfs_get_action(orig_obs):
     jobs = []
     for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES: (i + 1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            jobs.append(sys.maxsize - submit_time)
-    return [np.argmax(jobs)]
+        jobs.append(submit_time)
+    return [np.argmin(jobs)]
 
 
 def f1_get_action(orig_obs):
@@ -102,13 +93,10 @@ def f1_get_action(orig_obs):
     jobs = []
     for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES : (i+1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            # f1: log10(r)*n + 8.70 * 100 * log10(s)
-            f1_score = sys.maxsize - (np.log10(request_processors) * run_time + 870 * np.log10(submit_time))
-            jobs.append(f1_score)
-    return [np.argmax(jobs)]
+        # f1: log10(r)*n + 8.70 * 100 * log10(s)
+        f1_score = np.log10(request_processors) * run_time + 870 * np.log10(submit_time)
+        jobs.append(f1_score)
+    return [np.argmin(jobs)]
 
 
 def f2_get_action(orig_obs):
@@ -116,13 +104,10 @@ def f2_get_action(orig_obs):
     jobs = []
     for i in range(0, total_element):
         [submit_time, run_time, request_processors] = orig_obs[0][i * JOB_FEATURES : (i+1) * JOB_FEATURES]
-        if submit_time == 0 and run_time == 0 and request_processors == 0:
-            jobs.append(-1)
-        else:
-            # f2: r^(1/2)*n + 25600 * log10(s)
-            f2_score = sys.maxsize - (np.sqrt(run_time) * request_processors + 25600 * np.log10(submit_time))
-            jobs.append(f2_score)
-    return [np.argmax(jobs)]
+        # f2: r^(1/2)*n + 25600 * log10(s)
+        f2_score = np.sqrt(run_time) * request_processors + 25600 * np.log10(submit_time)
+        jobs.append(f2_score)
+    return [np.argmin(jobs)]
 
 
 def run_policy(env, get_action, get_value, get_logits, nums, iters):

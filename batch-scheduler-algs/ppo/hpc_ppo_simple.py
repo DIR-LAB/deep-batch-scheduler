@@ -181,6 +181,7 @@ def ppo(env_name, workload_file, model_path, ac_kwargs=dict(), seed=0,
 
     env = gym.make(env_name)
     env.my_init(workload_file=workload_file)
+    env.seed(seed)
 
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape

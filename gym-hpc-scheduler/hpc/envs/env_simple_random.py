@@ -2,7 +2,6 @@ import numpy as np
 import math
 import sys
 import os
-import random
 
 import gym
 from gym import spaces
@@ -35,10 +34,10 @@ class SimpleRandomHPCEnv(gym.Env):
                                             shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
 
-        print("Initialize Simple HPC Env")
+        print("Initialize Simple HPC Env V6")
 
         # initialize random state used by the whole system.
-        random.seed(SEED)
+        # random.seed(SEED)
 
         self.job_queue = []
         self.running_jobs = []
@@ -78,13 +77,16 @@ class SimpleRandomHPCEnv(gym.Env):
         return (np.log10(request_processors) * run_time + 870 * np.log10(submit_time))
 
     def sjf_score(self, job):
-        submit_time = job.submit_time
-        request_processors = job.request_number_of_processors
-        # request_time = job.request_time
         run_time = job.run_time
         if job.job_id == 0:
             return sys.maxsize
         return run_time
+
+    def fcfs_score(self, job):
+        submit_time = job.submit_time
+        if job.job_id == 0:
+            return sys.maxsize
+        return submit_time
 
     def reset(self):
         self.cluster.reset()
@@ -107,7 +109,7 @@ class SimpleRandomHPCEnv(gym.Env):
         job_sequence_size = 64
 
         # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
-        self.start = random.randint(job_sequence_size, (self.loads.size() - 2 * job_sequence_size))
+        self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - 2 * job_sequence_size))
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
@@ -129,7 +131,7 @@ class SimpleRandomHPCEnv(gym.Env):
             job_tmp.run_time = runtime_of_job
             if self.cluster.can_allocated(job_tmp):
                 self.running_jobs.append(job_tmp)
-                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, runtime_of_job)))
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - self.np_random.randint(0, runtime_of_job)))
                 # job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
                 job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
                 q_workloads.append(job_tmp)
@@ -206,8 +208,8 @@ class SimpleRandomHPCEnv(gym.Env):
         return obs
 
     def build_observation(self):
-        self.job_queue.sort(key=lambda job: self.f1_score(job))
-        # self.job_queue.sort(key=lambda j: self.sjf_score(j))
+        # self.job_queue.sort(key=lambda job: self.f1_score(job))
+        self.job_queue.sort(key=lambda j: self.fcfs_score(j))
 
         vector = np.zeros((MAX_QUEUE_SIZE + 1) * JOB_FEATURES, dtype=float)
 

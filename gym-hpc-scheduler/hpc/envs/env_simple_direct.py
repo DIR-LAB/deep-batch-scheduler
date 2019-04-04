@@ -29,15 +29,15 @@ class SimpleDirectHPCEnv(gym.Env):
     def __init__(self):  # do nothing and return. A workaround for passing parameters to the environment
         super(SimpleDirectHPCEnv, self).__init__()
 
-        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE + 1) # one action that does not schedule any job
+        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE)
         self.observation_space = spaces.Box(low=0.0, high=1.0,
                                             shape=(JOB_FEATURES * (MAX_QUEUE_SIZE + 1),),
                                             dtype=np.float32)
 
-        print("Initialize Simple Direct HPC Env")
+        print("Initialize Simple Direct HPC Env V5")
 
         # initialize random state used by the whole system.
-        random.seed(SEED)
+        # random.seed(SEED)
 
         self.job_queue = []
         self.running_jobs = []
@@ -60,7 +60,6 @@ class SimpleDirectHPCEnv(gym.Env):
         print("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Cluster", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
-
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
