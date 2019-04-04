@@ -218,10 +218,10 @@ def run_policy(env, get_action, get_value, get_logits, nums, iters):
         f2_r.append(f2)
         rl_r.append(rl)
 
-        if model <= 1.1 * sjf:
+        if rl <= 1.1 * sjf:
             number_of_better += 1
 
-        if model <= 1.1 * f1:
+        if rl <= 1.1 * f1:
             number_of_best += 1
 
     print("better number:", number_of_better, "best number:", number_of_best)
