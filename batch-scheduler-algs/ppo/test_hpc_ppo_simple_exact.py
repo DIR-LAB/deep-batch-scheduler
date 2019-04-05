@@ -160,7 +160,7 @@ def run_policy(env, get_action, get_value, get_logits, nums, iters):
             a_s = [0]
             total += 1
 
-            if v < 0:
+            if v < -100:
                 a = a_s
                 s += 1
             else:
