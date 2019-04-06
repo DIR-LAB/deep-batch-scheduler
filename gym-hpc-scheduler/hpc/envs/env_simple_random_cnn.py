@@ -29,7 +29,7 @@ class SimpleRandomCNNHPCEnv(gym.Env):
         super(SimpleRandomCNNHPCEnv, self).__init__()
 
         self.action_space = spaces.Discrete(MAX_QUEUE_SIZE)
-        self.observation_space = spaces.Box(low=0.0, high=sys.maxsize,
+        self.observation_space = spaces.Box(low=0.0, high=1.0,
                                             shape=(JOB_FEATURES * MAX_QUEUE_SIZE,),
                                             dtype=np.float32)
 
@@ -224,6 +224,8 @@ class SimpleRandomCNNHPCEnv(gym.Env):
                 remainded = running_job.scheduled_time + running_job.run_time - self.current_timestamp
                 node_avail += max(MAX_RUN_TIME - remainded, 0) / MAX_RUN_TIME
 
+        node_avail_normal = (node_avail / self.cluster.total_node)
+
         for i in range(0, MAX_QUEUE_SIZE):
             if i < len(self.job_queue):
                 job = self.job_queue[i]
@@ -233,7 +235,12 @@ class SimpleRandomCNNHPCEnv(gym.Env):
                 run_time = job.run_time
                 wait_time = self.current_timestamp - submit_time
                 request_nodes = int(math.ceil(float(request_processors)/float(self.cluster.num_procs_per_node)))
-                vector[i * JOB_FEATURES:(i+1)*JOB_FEATURES] = [wait_time, run_time, request_nodes, node_avail]
+
+                normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1)
+                normalized_run_time = min(float(run_time) / float(self.loads.max_exec_time), 1)
+                normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1)
+
+                vector[i * JOB_FEATURES:(i+1)*JOB_FEATURES] = [normalized_wait_time, normalized_run_time, normalized_request_nodes, node_avail_normal]
             else:
                 vector[i * JOB_FEATURES:(i+1)*JOB_FEATURES] = [0,0,0,0]
             
