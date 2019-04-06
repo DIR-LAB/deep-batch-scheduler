@@ -98,7 +98,6 @@ def f1_get_action(orig_obs):
         jobs.append(f1_score)
     return [np.argmin(jobs)]
 
-
 def f2_get_action(orig_obs):
     total_element = int(len(orig_obs[0]) / JOB_FEATURES)
     jobs = []
@@ -157,10 +156,10 @@ def run_policy(env, get_action, get_value, get_logits, nums, iters):
             # a_m = get_action(o)
             logits = get_logits(o)
             a_m = [np.argmax(logits[0])]
-            a_s = [0]
+            a_s = sjf_get_action_normal(o)
             total += 1
 
-            if v < -100:
+            if v < 0:
                 a = a_s
                 s += 1
             else:

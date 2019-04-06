@@ -6,5 +6,6 @@ from hpc.envs.env_simple import SimpleHPCEnv
 from hpc.envs.env_simple_direct import SimpleDirectHPCEnv
 from hpc.envs.env_simple_random import SimpleRandomHPCEnv
 from hpc.envs.env_simple_random_shuffle import SimpleRandomShuffleHPCEnv
+from hpc.envs.env_simple_random_cnn import SimpleRandomCNNHPCEnv
 from hpc.envs.job import Job, Workloads
 from hpc.envs.cluster import Machine, Cluster
