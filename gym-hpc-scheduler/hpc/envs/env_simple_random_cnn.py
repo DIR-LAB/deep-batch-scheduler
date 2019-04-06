@@ -11,7 +11,7 @@ from hpc.envs.job import Job
 from hpc.envs.job import Workloads
 from hpc.envs.cluster import Cluster
 
-MAX_QUEUE_SIZE = 32
+MAX_QUEUE_SIZE = 64
 MAX_JOBS_EACH_BATCH = 256
 MIN_JOBS_EACH_BATCH = 1
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.

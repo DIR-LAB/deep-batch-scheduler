@@ -15,7 +15,7 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 EPS = 1e-8
 
-MAX_QUEUE_SIZE = 32
+MAX_QUEUE_SIZE = 64
 MLP_SIZE = 256
 
 # each job has three features: submit_time, request_number_of_processors, request_time/run_time,
@@ -57,25 +57,57 @@ def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
         x = tf.layers.dense(x, units=h, activation=activation)
     return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
 
-def cnn(x, act_dim):
-    x = tf.reshape(x, shape=[-1, MAX_QUEUE_SIZE, JOB_FEATURES])
-    x = tf.layers.conv1d(x, filters=64, kernel_size=1, strides=1, activation=tf.nn.relu)
-    x = tf.layers.max_pooling1d(x, 2, 2)
-    x = tf.layers.conv1d(x, filters=64, kernel_size=1, strides=1, activation=tf.nn.relu)
-    x = tf.layers.max_pooling1d(x, 2, 2)
-    x = tf.layers.conv1d(x, filters=64, kernel_size=1, strides=1, activation=tf.nn.relu)
-    x = tf.layers.max_pooling1d(x, 2, 2)
-    x = tf.reshape(x, [-1, 64 * 4])
-    x = tf.layers.dense(x, units=act_dim, activation=tf.nn.relu)
-    return x
+# Basic CNN Architecture
+def basic_cnn(x_ph, act_dim):
+    x = tf.reshape(x_ph, shape=[-1, 8, 8, JOB_FEATURES])
+    conv1 = tf.layers.conv2d(
+            inputs=x,
+            filters=32,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool1 = tf.layers.max_pooling2d(
+            inputs=conv1,
+            pool_size=[2, 2],
+            strides=2
+    )
+    conv2 = tf.layers.conv2d(
+            inputs=pool1,
+            filters=64,
+            kernel_size=[3, 3],
+            strides=1,
+            padding='same',
+            activation=tf.nn.relu
+    )
+    pool2 = tf.layers.max_pooling2d(
+            inputs=conv2,
+            pool_size=[2, 2],
+            strides=2
+    )
+    flat = tf.reshape(pool2, [-1, 2 * 2 * 64])
+    dense = tf.layers.dense(
+            inputs=flat,
+            units=1024,
+            activation=tf.nn.relu
+    )
+    dropout = tf.layers.dropout(
+            inputs=dense,
+            rate=0.5,
+    )
+    return tf.layers.dense(
+            inputs=dropout,
+            units=act_dim
+    )
 
 """
 Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    # logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
-    logits = cnn(x, act_dim)
+    # logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
+    logits = basic_cnn(x, act_dim)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -90,8 +122,8 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        # v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
-        v = tf.squeeze(cnn(x, 1), axis=1)
+        #v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
     return logits, pi, logp, logp_pi, v
 
 
