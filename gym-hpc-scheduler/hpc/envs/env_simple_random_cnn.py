@@ -266,7 +266,7 @@ class SimpleRandomCNNHPCEnv(gym.Env):
         if action >= len(self.job_queue):  # this is illegal action; find the most unlikely job from visible jobs.
             # action = (len(self.job_queue) - 1)
             jobs = []
-            for _job in self.visible_jobs:
+            for _job in self.visible_jobs:  # self.visible_jobs are what agent saw
                 jobs.append(self.f1_score(_job))
             action = np.argmax(jobs)
 
