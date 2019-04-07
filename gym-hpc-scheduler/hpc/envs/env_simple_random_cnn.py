@@ -229,8 +229,8 @@ class SimpleRandomCNNHPCEnv(gym.Env):
             else:
                 break
         # random.shuffle(visible_jobs)
-        # visible_jobs.sort(key=lambda j: self.fcfs_score(j))
-        #self.job_queue.sort(key=lambda j: self.fcfs_score(j))
+        visible_jobs.sort(key=lambda j: self.fcfs_score(j))
+        self.job_queue.sort(key=lambda j: self.fcfs_score(j))
 
         for i in range(0, MAX_QUEUE_SIZE):
             if i < len(visible_jobs):
