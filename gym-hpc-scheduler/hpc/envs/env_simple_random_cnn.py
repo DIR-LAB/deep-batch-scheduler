@@ -38,6 +38,7 @@ class SimpleRandomCNNHPCEnv(gym.Env):
 
         self.job_queue = []
         self.running_jobs = []
+        self.visible_jobs = []
 
         self.current_timestamp = 0
         self.start = 0
@@ -91,6 +92,7 @@ class SimpleRandomCNNHPCEnv(gym.Env):
 
         self.job_queue = []
         self.running_jobs = []
+        self.visible_jobs = []
 
         self.current_timestamp = 0
         self.start = 0
@@ -191,6 +193,7 @@ class SimpleRandomCNNHPCEnv(gym.Env):
         self.loads.reset()
         self.job_queue = []
         self.running_jobs = []
+        self.visible_jobs = []
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue.append(self.loads[self.start])
         self.last_job_in_batch = self.start + self.num_job_in_batch
@@ -222,19 +225,19 @@ class SimpleRandomCNNHPCEnv(gym.Env):
         node_avail_normal = (node_avail / self.cluster.total_node)
 
         self.job_queue.sort(key=lambda job: self.f1_score(job))
-        visible_jobs = []
+        self.visible_jobs = []
         for i in range(0, MAX_QUEUE_SIZE):
             if i < len(self.job_queue):
-                visible_jobs.append(self.job_queue[i])
+                self.visible_jobs.append(self.job_queue[i])
             else:
                 break
         # random.shuffle(visible_jobs)
-        visible_jobs.sort(key=lambda j: self.fcfs_score(j))
+        self.visible_jobs.sort(key=lambda j: self.fcfs_score(j))
         self.job_queue.sort(key=lambda j: self.fcfs_score(j))
 
         for i in range(0, MAX_QUEUE_SIZE):
-            if i < len(visible_jobs):
-                job = visible_jobs[i]
+            if i < len(self.visible_jobs):
+                job = self.visible_jobs[i]
                 submit_time = job.submit_time
                 request_processors = job.request_number_of_processors
                 # request_time = job.request_time
@@ -260,8 +263,13 @@ class SimpleRandomCNNHPCEnv(gym.Env):
         job_for_scheduling_index = -1
         self.total_interactions += 1
 
-        if action >= len(self.job_queue):  # this is illegal action
-            action = (len(self.job_queue) - 1)
+        if action >= len(self.job_queue):  # this is illegal action; find the most unlikely job from visible jobs.
+            # action = (len(self.job_queue) - 1)
+            jobs = []
+            for _job in self.visible_jobs:
+                jobs.append(self.f1_score(_job))
+            action = np.argmax(jobs)
+
         job_for_scheduling = self.job_queue[action]
         job_for_scheduling_index = action
 
