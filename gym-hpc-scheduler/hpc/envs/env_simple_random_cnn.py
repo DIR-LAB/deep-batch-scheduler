@@ -2,6 +2,7 @@ import numpy as np
 import math
 import sys
 import os
+import random
 
 import gym
 from gym import spaces
@@ -204,11 +205,7 @@ class SimpleRandomCNNHPCEnv(gym.Env):
         return obs
 
     def build_observation(self):
-        # self.job_queue.sort(key=lambda job: self.f1_score(job))
-        self.job_queue.sort(key=lambda j: self.fcfs_score(j))
-
         vector = np.zeros((MAX_QUEUE_SIZE) * JOB_FEATURES, dtype=float)
-
         node_avail = 0.0
         for i in range(0, self.cluster.total_node):
             if self.cluster.all_nodes[i].is_free:
@@ -220,21 +217,30 @@ class SimpleRandomCNNHPCEnv(gym.Env):
                     if _j.job_id == running_job_id:
                         running_job = _j
                         break
-
                 remainded = running_job.scheduled_time + running_job.run_time - self.current_timestamp
-                node_avail += max(MAX_RUN_TIME - remainded, 0) / MAX_RUN_TIME
-
+                node_avail += max(self.loads.max_exec_time - remainded, 0) / self.loads.max_exec_time
         node_avail_normal = (node_avail / self.cluster.total_node)
 
+        self.job_queue.sort(key=lambda job: self.f1_score(job))
+        visible_jobs = []
         for i in range(0, MAX_QUEUE_SIZE):
             if i < len(self.job_queue):
-                job = self.job_queue[i]
+                visible_jobs.append(self.job_queue[i])
+            else:
+                break
+        random.shuffle(visible_jobs)
+        # visible_jobs.sort(key=lambda j: self.fcfs_score(j))
+        #self.job_queue.sort(key=lambda j: self.fcfs_score(j))
+
+        for i in range(0, MAX_QUEUE_SIZE):
+            if i < len(visible_jobs):
+                job = visible_jobs[i]
                 submit_time = job.submit_time
                 request_processors = job.request_number_of_processors
                 # request_time = job.request_time
                 run_time = job.run_time
                 wait_time = self.current_timestamp - submit_time
-                request_nodes = int(math.ceil(float(request_processors)/float(self.cluster.num_procs_per_node)))
+                # request_nodes = int(math.ceil(float(request_processors)/float(self.cluster.num_procs_per_node)))
 
                 normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1)
                 normalized_run_time = min(float(run_time) / float(self.loads.max_exec_time), 1)

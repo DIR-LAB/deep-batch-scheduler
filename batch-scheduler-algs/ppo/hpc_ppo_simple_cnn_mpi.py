@@ -62,8 +62,8 @@ def basic_cnn(x_ph, act_dim):
     x = tf.reshape(x_ph, shape=[-1, 8, 8, JOB_FEATURES])
     conv1 = tf.layers.conv2d(
             inputs=x,
-            filters=32,
-            kernel_size=[3, 3],
+            filters=64,
+            kernel_size=[1, 1],
             strides=1,
             padding='same',
             activation=tf.nn.relu
@@ -76,7 +76,7 @@ def basic_cnn(x_ph, act_dim):
     conv2 = tf.layers.conv2d(
             inputs=pool1,
             filters=64,
-            kernel_size=[3, 3],
+            kernel_size=[2, 2],
             strides=1,
             padding='same',
             activation=tf.nn.relu
@@ -106,8 +106,8 @@ Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
-    # logits = basic_cnn(x, act_dim)
+    # logits = mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[act_dim], tf.tanh, None)
+    logits = basic_cnn(x, act_dim)
     logp_all = tf.nn.log_softmax(logits)
     pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
     logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
@@ -122,8 +122,8 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
-        # v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        # v = tf.squeeze(mlp(x, list((MLP_SIZE,MLP_SIZE,MLP_SIZE))+[1], tf.tanh, None), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
     return logits, pi, logp, logp_pi, v
 
 
@@ -367,7 +367,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=10)
     parser.add_argument('--steps', type=int, default=128000)
     parser.add_argument('--epochs', type=int, default=10000)
-    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-cnn-Q32-mpi-v8')
+    parser.add_argument('--exp_name', type=str, default='hpc-ppo-simple-cnn-Q32-mpi-v8-shuffle-visible')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
