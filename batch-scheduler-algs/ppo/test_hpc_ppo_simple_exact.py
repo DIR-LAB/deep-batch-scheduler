@@ -17,10 +17,10 @@ import matplotlib.pyplot as plt
 plt.rcdefaults()
 
 
-MAX_QUEUE_SIZE = 32
+MAX_QUEUE_SIZE = 64
 MAX_JOBS_EACH_BATCH = 256
 MAX_JOBS_EACH_BATCH = 32
-JOB_FEATURES = 3
+JOB_FEATURES = 4
 
 
 def load_policy(fpath, env_name, workload_file, itr='last'):
@@ -269,7 +269,7 @@ if __name__ == '__main__':
     parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-256k-Q32-mpi-v6-180/hpc-ppo-simple-256k-Q32-mpi-v6_s1/')
     #parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-winloss-128k-Q32-v4/hpc-ppo-simple-winloss-128k-Q32-v4_s1/')
     # parser.add_argument('--fpath', type=str, default='../../data/models/hpc-ppo-simple-direct-162k-Q35-empty-mpi/hpc-ppo-simple-direct-162k-Q35-empty-mpi_s1/')
-    parser.add_argument('--env', type=str, default='Scheduler-v5')
+    parser.add_argument('--env', type=str, default='Scheduler-v8')
     parser.add_argument('--workload', type=str, default='../../data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=128)
     parser.add_argument('--episodes', '-n', type=int, default=100)
