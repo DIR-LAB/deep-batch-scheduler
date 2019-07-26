@@ -4,12 +4,12 @@ repo for the deep batch scheduler research
 ## Installation
 
 ### Required Software
-* Python 3.6
+* Python 3.7
 ```bash
 sudo apt-get install software-properties-common
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt-get update
-sudo apt-get install python3.6
+sudo apt-get install python3.7
 ```
 * OpenMPI 
 ```bash
@@ -18,9 +18,9 @@ sudo apt-get install openmpi-bin openmpi-doc libopenmpi-dev
 
 * Tensorflow
 ```bash
-sudo apt install python3.6-dev python3-pip
+sudo apt install python3.7-dev python3-pip
 sudo pip3 install -U virtualenv
-virtualenv --system-site-packages -p python3.6 ./venv
+virtualenv --system-site-packages -p python3.7 ./venv
 source ./venv/bin/activate  # sh, bash, ksh, or zsh
 pip install --upgrade pip
 pip install --upgrade tensorflow
