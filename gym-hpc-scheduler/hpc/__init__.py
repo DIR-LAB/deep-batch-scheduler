@@ -44,3 +44,8 @@ register(
         id='Scheduler-v8',
         entry_point='hpc.envs:SimpleRandomCNNHPCEnv',
 )
+
+register(
+        id='Scheduler-v9',
+        entry_point='hpc.envs:SimpleRandomLegalEnv',
+)
