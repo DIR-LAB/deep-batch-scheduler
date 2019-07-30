@@ -218,6 +218,57 @@ class SimpleRandomLegalEnv(gym.Env):
         vector[(MAX_QUEUE_SIZE - 1)*JOB_FEATURES:MAX_QUEUE_SIZE*JOB_FEATURES] = [0,1,1,node_avail_normal]
         return np.reshape(vector, [-1, (MAX_QUEUE_SIZE) * JOB_FEATURES])
 
+    def schedule_and_continue(self, action):
+        # consume a legal job, has to make sure we have enough legal jobs for the next state
+        job_for_scheduling = self.visible_jobs[action]
+        assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+        job_for_scheduling.scheduled_time = self.current_timestamp
+        job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                        job_for_scheduling.request_number_of_processors)
+        self.running_jobs.append(job_for_scheduling)
+        self.scheduled_logs.append(job_for_scheduling)
+        _tmp = max(1.0, (float(
+                job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
+                            /
+                            max(job_for_scheduling.run_time, 10)))
+        self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
+        self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
+        
+        # make sure there are legal jobs for the next state
+        legal_job_exist = False
+        for _j in self.job_queue:
+            if self.cluster.can_allocated(_j):
+                legal_job_exist = True
+                break
+        while not legal_job_exist:
+            # move forward to get new jobs or finish running jobs
+            if not self.running_jobs:  # there are no running jobs
+                next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
+                next_resource_release_machines = []
+            else:
+                self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+                next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+                next_resource_release_machines = self.running_jobs[0].allocated_machines
+
+            if self.next_arriving_job_idx < self.last_job_in_batch \
+                    and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
+                assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
+                self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                self.job_queue.append(self.loads[self.next_arriving_job_idx])
+                self.next_arriving_job_idx += 1
+            else:
+                if self.running_jobs:
+                    assert self.current_timestamp <= next_resource_release_time
+                    self.current_timestamp = next_resource_release_time
+                    self.cluster.release(next_resource_release_machines)
+                    self.running_jobs.pop(0)  # remove the first running job.
+                else:
+                    if not self.job_queue:
+                        break;
+            for _j in self.job_queue:
+                if self.cluster.can_allocated(_j):
+                    legal_job_exist = True
+                    break
     def step(self, a):
         '''we have to make sure the state returned by step() always and only contains valid jobs to schedule'''
         action = a[0]
@@ -245,57 +296,15 @@ class SimpleRandomLegalEnv(gym.Env):
                     self.current_timestamp = next_resource_release_time
                     self.cluster.release(next_resource_release_machines)
                     self.running_jobs.pop(0)  # remove the first running job
+                else:
+                    # there are no running jobs and no new job to add.
+                    js = []
+                    for _j in self.visible_jobs:
+                        js.append(self.sjf_score(_j))
+                    action = np.argmax(js)
+                    self.schedule_and_continue(action)
         else:
-            # consume a legal job, has to make sure we have enough legal jobs for the next state
-            job_for_scheduling = self.visible_jobs[action]
-            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-            job_for_scheduling.scheduled_time = self.current_timestamp
-            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
-                                                                            job_for_scheduling.request_number_of_processors)
-            self.running_jobs.append(job_for_scheduling)
-            self.scheduled_logs.append(job_for_scheduling)
-            _tmp = max(1.0, (float(
-                    job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
-                                /
-                                max(job_for_scheduling.run_time, 10)))
-            self.scheduled_bsld[job_for_scheduling.job_id] = (_tmp / self.num_job_in_batch)
-            self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
-            
-            # make sure there are legal jobs for the next state
-            legal_job_exist = False
-            for _j in self.job_queue:
-                if self.cluster.can_allocated(_j):
-                    legal_job_exist = True
-                    break
-            while not legal_job_exist:
-                # move forward to get new jobs or finish running jobs
-                if not self.running_jobs:  # there are no running jobs
-                    next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
-                    next_resource_release_machines = []
-                else:
-                    self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
-                    next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
-                    next_resource_release_machines = self.running_jobs[0].allocated_machines
-
-                if self.next_arriving_job_idx < self.last_job_in_batch \
-                        and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-                    assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
-                    self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
-                    self.job_queue.append(self.loads[self.next_arriving_job_idx])
-                    self.next_arriving_job_idx += 1
-                else:
-                    if self.running_jobs:
-                        assert self.current_timestamp <= next_resource_release_time
-                        self.current_timestamp = next_resource_release_time
-                        self.cluster.release(next_resource_release_machines)
-                        self.running_jobs.pop(0)  # remove the first running job.
-                    else:
-                        if not self.job_queue:
-                            break;
-                for _j in self.job_queue:
-                    if self.cluster.can_allocated(_j):
-                        legal_job_exist = True
-                        break
+            self.schedule_and_continue(action)
 
         done = True
         for i in range(self.start, self.last_job_in_batch):

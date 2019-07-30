@@ -118,7 +118,6 @@ def categorical_policy(x, a, action_space):
 Actor-Critics
 """
 def actor_critic(x, a, action_space=None):
-
     with tf.variable_scope('pi'):
         logits, pi, logp, logp_pi = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
