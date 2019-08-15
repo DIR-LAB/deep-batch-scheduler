@@ -209,7 +209,8 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     sess.run(tf.global_variables_initializer())
 
     # Setup model saving
-    logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'action_probs': action_probs, 'v': v})
+    # logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'action_probs': action_probs, 'log_picked_action_prob': log_picked_action_prob, 'v': v})
+    logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a':a_ph, 'adv':adv_ph, 'ret':ret_ph, 'logp_old_ph':logp_old_ph}, outputs={'action_probs': action_probs, 'log_picked_action_prob': log_picked_action_prob, 'v': v, 'pi_loss':pi_loss, 'v_loss':v_loss, 'approx_ent':approx_ent, 'approx_kl':approx_kl, 'clipped':clipped, 'clipfrac':clipfrac})
 
     def update():
         inputs = {k:v for k,v in zip(all_phs, buf.get())}

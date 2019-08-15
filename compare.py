@@ -43,9 +43,6 @@ def load_policy(model_path, itr='last'):
     return get_probs, get_v
 
 def run_policy(env, get_probs, get_value, nums, iters):
-    number_of_better = 0
-    number_of_best = 0
-
     rl_r = []
     f1_r = [] 
     f2_r = []
