@@ -196,7 +196,7 @@ class HPCEnv(gym.Env):
 
         # schedule the sequence of jobs using heuristic algorithm. 
         while True:
-            self.job_queue.sort(key=lambda j: self.f1_score(j))
+            self.job_queue.sort(key=lambda j: self.sjf_score(j))
             job_for_scheduling = self.job_queue[0]
 
             # make sure we move forward and release needed resources
