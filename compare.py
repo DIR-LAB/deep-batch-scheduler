@@ -138,8 +138,6 @@ if __name__ == '__main__':
     parser.add_argument('--iter', '-i', type=int, default=10)
     args = parser.parse_args()
 
-    random.seed(1)
-
     current_dir = os.getcwd()
     workload_file = os.path.join(current_dir, args.workload)
     model_file = os.path.join(current_dir, args.rlmodel)
@@ -149,6 +147,6 @@ if __name__ == '__main__':
     # initialize the environment from scratch
     env = HPCEnv()
     env.my_init(workload_file=workload_file)
-    env.seed(args.seed)
+    env.seed(int(time.time()))
 
     run_policy(env, get_probs, get_value, args.len, args.iter)
