@@ -8,7 +8,7 @@ from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 
-from ReHPC import *
+from HPCSim import *
 
 def dnn(x_ph, act_dim):
     x = tf.reshape(x_ph, shape=[-1, 6, 6, JOB_FEATURES])
