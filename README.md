@@ -1,5 +1,5 @@
 # deep-batch-scheduler
-repo for the deep batch scheduler research
+repo for the deep batch scheduler research on Ubuntu 16.04
 
 ## Installation
 
@@ -49,47 +49,11 @@ ssh-add ~/...
 git clone git@github.com:DIR-LAB/deep-batch-scheduler.git
 ```
 
-## Tensorflow and all Driver install
+### Usage
 
-### On Ubuntu 16.04 with Tesla GPUs 
-
-Reference：https://gist.github.com/zhanwenchen/e520767a409325d9961072f666815bb8
-
-Check whether the driver has been installed
-```
-nvidia-smi
-```
-
-If not, install Nvidia Drivers
-1. install Nvidia Modprobe
 ```bash
-sudo apt-add-repository multiverse
-sudo apt update
-sudo apt install nvidia-modprobe
+python vpg.py --exp_name what-ever-name-you-want --trajs how-many-trajs-in-each-epoch
 ```
+There are manyother parameters in the source file.
 
-install driver via Nvidia repo
-```bash
-sudo add-apt-repository ppa:graphics-drivers/ppa
-sudo apt update
-sudo apt install nvidia-387
-```
-
-install CUDA and cuDNN
-https://gist.github.com/wangruohui/df039f0dc434d6486f5d4d098aa52d07
-
-Note that, Spinningup will install Tensorflow。This may overwrite previously installed Tensorflow-GPU.
-
-Determine whether your Tensorflow is using GPU:
-```
-sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-
-import tensorflow as tf
-with tf.device('/gpu:0'):
-    a = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[2, 3], name='a')
-    b = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[3, 2], name='b')
-    c = tf.matmul(a, b)
-
-with tf.Session() as sess:
-    print (sess.run(c))
-```
+vpg.py and ppo.py are traning the RL agent to pick a job. On the other hand, vpg-pick-algms.py is to train the RL agent to pick a sort algorithm to use to schedule current job queue. 
