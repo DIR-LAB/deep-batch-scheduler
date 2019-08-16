@@ -9,7 +9,7 @@ import sys
 import random
 from random import shuffle
 
-from HPCSim import *
+from HPCSimPickAlgms import *
 
 from spinup.utils.logx import EpochLogger
 from spinup.utils.logx import restore_tf_graph
@@ -276,31 +276,9 @@ def vpg(workload_file, model_path, ac_kwargs=dict(), seed=0,
         while True:
             # x_ph should be (?, 144)
             action_probs, v_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES)})
-            state = o.reshape(1, 36, 4)
-            
-            lst = []
-            legal_job_idx = []
-            for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
-                if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
-                    lst.append(0)
-                else:
-                    lst.append(action_probs[int(i/JOB_FEATURES)])
-                    legal_job_idx.append(int(i/JOB_FEATURES))
-
-            legal_action_probs = np.array(lst)
-            total = legal_action_probs.sum()
-            legal_action_probs /= total
-
-            if np.isnan(legal_action_probs).any():
-                print("nan:---------->observation:\n", o, "\nlegal_action_probs", legal_action_probs, "\naction_probs", action_probs)
-                return
-            
-            action = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=legal_action_probs)
-            log_action_prob = np.log(legal_action_probs[action])
-            '''
-            action = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=action_probs)
+            action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
             log_action_prob = np.log(action_probs[action])
-            '''
+            
             # save and log
             buf.store(o, np.array(action), r, v_t, log_action_prob)
             logger.store(VVals=v_t)
@@ -351,7 +329,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--trajs', type=int, default=100)
     parser.add_argument('--epochs', type=int, default=4000)
-    parser.add_argument('--exp_name', type=str, default='vpg')
+    parser.add_argument('--exp_name', type=str, default='vpg-pick-algms')
     parser.add_argument('--pre_trained', type=int, default=0)
     parser.add_argument('--trained_model', type=str, default='./data/logs/reinforce-model/reinforce-s0/')
 

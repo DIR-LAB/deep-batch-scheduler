@@ -52,11 +52,11 @@ def run_policy(env, get_probs, get_value, nums, iters):
 
     for _ in range(0, iters):
         env.reset_for_test(nums)
-        f1_r.append(env.schedule_curr_sequence(env.f1_score))
-        f2_r.append(env.schedule_curr_sequence(env.f2_score))
-        sjf_r.append(env.schedule_curr_sequence(env.sjf_score))
-        small_r.append(env.schedule_curr_sequence(env.smallest_score))
-        fcfs_r.append(env.schedule_curr_sequence(env.fcfs_score))
+        f1_r.append(sum(env.schedule_curr_sequence_reset(env.f1_score).values()))
+        f2_r.append(sum(env.schedule_curr_sequence_reset(env.f2_score).values()))
+        sjf_r.append(sum(env.schedule_curr_sequence_reset(env.sjf_score).values()))
+        small_r.append(sum(env.schedule_curr_sequence_reset(env.smallest_score).values()))
+        fcfs_r.append(sum(env.schedule_curr_sequence_reset(env.fcfs_score).values()))
 
         o = env.build_observation()
         rl = 0

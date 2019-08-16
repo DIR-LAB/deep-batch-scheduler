@@ -291,7 +291,6 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
 
         # Perform PPO update!
         update()
-        env.total_epoch += 1
 
         # Log info about epoch
         logger.log_tabular('Epoch', epoch)
