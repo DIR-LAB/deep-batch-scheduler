@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 32
+JOB_SEQUENCE_SIZE = 128
 ALGMS_SIZE = 5
 
 def combined_shape(length, shape=None):
@@ -170,42 +170,14 @@ class HPCEnv(gym.Env):
         self.job_queue.append(self.loads[self.start])
         self.next_arriving_job_idx = self.start + 1
 
-        if self.enable_preworkloads:
-            # Generate some running jobs to randomly fill the cluster.
-            # @todo: let's change the running_job_size to a random number.
-            q_workloads = []
-            running_job_size = self.np_random.randint(2 * job_sequence_size)
-            for i in range(running_job_size):
-                _job = self.loads[self.start - i - 1]
-                req_num_of_processors = _job.request_number_of_processors
-                runtime_of_job = _job.run_time
-                job_tmp = Job()
-                job_tmp.job_id = (-1 - i)  # to be different from the normal jobs; normal jobs have a job_id >= 0
-                job_tmp.request_number_of_processors = req_num_of_processors
-                job_tmp.run_time = runtime_of_job
-                if self.cluster.can_allocated(job_tmp):
-                    self.running_jobs.append(job_tmp)
-                    job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, max(runtime_of_job, 1))))
-                    # job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
-                    job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
-                    q_workloads.append(job_tmp)
-                else:
-                    break
-
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
 
-        if self.enable_preworkloads:
-            # use the same jobs to fill the cluster.
-            for job_tmp in q_workloads:
-                self.running_jobs.append(job_tmp)
-                job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
-
         done = False
-        # if there is only one job, try to schedule it and move forward. Really no need to let agent learn.
+        # if there is only one job, just schedule it and move forward. Really no need to let agent learn.
         while not done and self.has_only_one_job():
             # print ("in reset, schedule: ", self.job_queue[0])
             done = self.schedule(self.job_queue[0])
