@@ -176,16 +176,7 @@ class HPCEnv(gym.Env):
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
 
-        done = False
-        # if there is only one job, just schedule it and move forward. Really no need to let agent learn.
-        while not done and self.has_only_one_job():
-            # print ("in reset, schedule: ", self.job_queue[0])
-            done = self.schedule(self.job_queue[0])
-
-        if done:
-            return self.reset()
-        else:
-            return self.build_observation()
+        return self.build_observation()
 
     def reset_for_test(self, num):
         self.cluster.reset()
@@ -397,10 +388,6 @@ class HPCEnv(gym.Env):
         job_for_scheduling = self.visible_jobs[0]
         done = self.schedule(job_for_scheduling)
 
-        # if there is only one job, schedule it and move forward
-        while not done and self.has_only_one_job():
-            done = self.schedule(self.job_queue[0])
-
         if not done:
             obs = self.build_observation()
             return [obs, 0, False, None]
@@ -410,7 +397,14 @@ class HPCEnv(gym.Env):
             #print ("------------------------")
             #print (self.scheduled_rl)
             best_total = min(self.scheduled_scores) #self.scheduled_scores[0]
-            return [None, (best_total - rl_total), True, None]
+            # rwd = (best_total - rl_total)
+            if best_total < rl_total:
+                rwd = -1
+            if best_total > rl_total:
+                rwd = 1
+            if best_total == rl_total:
+                rwd = 0
+            return [None, rwd, True, None]
     
     def step_for_test(self, a):
         fn = self.algm_fn[a]
@@ -440,11 +434,11 @@ if __name__ == '__main__':
 
     env = HPCEnv()
     env.my_init(workload_file=workload_file, sched_file=workload_file)
-    env.seed(1)
+    env.seed(int(time.time()))
 
-    for _ in range(1):
+    for _ in range(100):
         _, r = env.reset(), 0
-        print (env.scheduled_scores)
+        print (env.scheduled_scores, end="\t")
 
         while True:
             _, r, d, _ = env.step(0)
