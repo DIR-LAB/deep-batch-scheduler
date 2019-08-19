@@ -28,7 +28,8 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 128
+# we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
+JOB_SEQUENCE_SIZE = 32
 ALGMS_SIZE = 5
 
 def combined_shape(length, shape=None):
@@ -93,7 +94,8 @@ class HPCEnv(gym.Env):
         self.penalty = 0
         self.scheduled_scores = []
 
-        self.enable_preworkloads = False
+        self.enable_preworkloads = True
+        self.pre_workloads = []
 
         self.algm_fn = [self.sjf_score, self.smallest_score, self.fcfs_score, self.f1_score, self.f2_score]
 
@@ -140,6 +142,32 @@ class HPCEnv(gym.Env):
         assert job.job_id != 0
         return submit_time
 
+    def gen_preworkloads(self, size):
+        # Generate some running jobs to randomly fill the cluster.
+        # size = self.np_random.randint(2 * job_sequence_size)
+        running_job_size = size
+        for i in range(running_job_size):
+            _job = self.loads[self.start - i - 1]
+            req_num_of_processors = _job.request_number_of_processors
+            runtime_of_job = _job.request_time
+            job_tmp = Job()
+            job_tmp.job_id = (-1 - i)  # to be different from the normal jobs; normal jobs have a job_id >= 0
+            job_tmp.request_number_of_processors = req_num_of_processors
+            job_tmp.run_time = runtime_of_job
+            if self.cluster.can_allocated(job_tmp):
+                self.running_jobs.append(job_tmp)
+                job_tmp.scheduled_time = max(0, (self.current_timestamp - random.randint(0, max(runtime_of_job, 1))))
+                # job_tmp.scheduled_time = max(0, (self.current_timestamp - runtime_of_job/2))
+                job_tmp.allocated_machines = self.cluster.allocate(job_tmp.job_id, job_tmp.request_number_of_processors)
+                self.pre_workloads.append(job_tmp)
+            else:
+                break
+
+    def refill_preworkloads(self):
+        for _job in self.pre_workloads:
+            self.running_jobs.append(_job)
+            _job.allocated_machines = self.cluster.allocate(_job.job_id, _job.request_number_of_processors)    
+
     def reset(self):
         self.cluster.reset()
         self.loads.reset()
@@ -159,6 +187,8 @@ class HPCEnv(gym.Env):
         self.scheduled_scores = []
 
         job_sequence_size = JOB_SEQUENCE_SIZE
+
+        self.pre_workloads = []
         
         # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
         self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
@@ -169,6 +199,9 @@ class HPCEnv(gym.Env):
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue.append(self.loads[self.start])
         self.next_arriving_job_idx = self.start + 1
+
+        if self.enable_preworkloads:
+            self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
 
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
@@ -244,6 +277,9 @@ class HPCEnv(gym.Env):
         self.last_job_in_batch = self.start + self.num_job_in_batch
         self.next_arriving_job_idx = self.start + 1
 
+        if self.enable_preworkloads:
+            self.refill_preworkloads()
+        
         return scheduled_logs
 
     def build_observation(self):
