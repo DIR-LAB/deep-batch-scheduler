@@ -59,17 +59,20 @@ def run_policy(env, get_probs, get_value, nums, iters):
         fcfs_r.append(sum(env.schedule_curr_sequence_reset(env.fcfs_score).values()))
 
         o = env.build_observation()
+        print ("schedule: ", end="")
         rl = 0
         while True:
             action_probs = get_probs(o)
             # v_t = get_value(o)
-
+            # print ("action_probs:", action_probs)
             a = np.argmax(action_probs)
+            print (a, end=" ")
             o, r, d, _ = env.step_for_test(a)
             rl += r
             if d:
                 break
         rl_r.append(rl)
+        print ("")
 
     # plot
     all_data = []

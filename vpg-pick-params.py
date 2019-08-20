@@ -9,7 +9,7 @@ import sys
 import random
 from random import shuffle
 
-from HPCSimPickAlgms import *
+from HPCSimPickParams import *
 
 from spinup.utils.logx import EpochLogger
 from spinup.utils.logx import restore_tf_graph

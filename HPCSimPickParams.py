@@ -97,8 +97,6 @@ class HPCEnv(gym.Env):
         self.enable_preworkloads = True
         self.pre_workloads = []
 
-        self.algm_fn = [self.sjf_score, self.smallest_score, self.fcfs_score, self.f1_score, self.f2_score]
-
     def my_init(self, workload_file = '', sched_file = ''):
         print ("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
@@ -109,22 +107,20 @@ class HPCEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
     
-    def f1_score(self, job):
+    def fn_score(self, job, fac_vec):
         submit_time = job.submit_time
+        wait_time = self.current_timestamp - submit_time
         request_processors = job.request_number_of_processors
         request_time = job.request_time
         # run_time = job.run_time
         assert job.job_id != 0
-        return (np.log10(request_processors) * request_time + 870 * np.log10(submit_time))
 
-    def f2_score(self, job):
-        submit_time = job.submit_time
-        request_processors = job.request_number_of_processors
-        request_time = job.request_time
-        # run_time = job.run_time
-        assert job.job_id != 0
-        # f2: r^(1/2)*n + 25600 * log10(s)
-        return (np.sqrt(request_time) * request_processors + 25600 * np.log10(submit_time))
+        # make sure that larger value is better.
+        normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1.0 - 1e-8)
+        normalized_run_time = min(float(request_time) / float(self.loads.max_exec_time), 1.0 - 1e-8)
+        normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1.0 - 1e-8)
+        
+        return (normalized_wait_time * fac_vec[0] + normalized_run_time * fac_vec[1] + normalized_request_nodes * fac_vec[2])
 
     def sjf_score(self, job):
         # run_time = job.run_time
@@ -419,8 +415,7 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        fn = self.algm_fn[a]
-        self.visible_jobs.sort(key=lambda j: fn(j))
+        self.visible_jobs.sort(key=lambda j: self.fn_score(j, a))
         job_for_scheduling = self.visible_jobs[0]
         done = self.schedule(job_for_scheduling)
 
@@ -443,8 +438,7 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        fn = self.algm_fn[a]
-        self.visible_jobs.sort(key=lambda j: fn(j))
+        self.visible_jobs.sort(key=lambda j: self.fn_score(j, a))
         job_for_scheduling = self.visible_jobs[0]
         done = self.schedule(job_for_scheduling)
 
