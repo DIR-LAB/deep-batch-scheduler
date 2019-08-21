@@ -115,7 +115,7 @@ class HPCEnv(gym.Env):
         request_processors = job.request_number_of_processors
         request_time = job.request_time
         # run_time = job.run_time
-        return (np.log10(request_processors) * request_time + 870 * np.log10(submit_time))
+        return (np.log10(request_time) * request_processors + 870 * np.log10(submit_time))
 
     def f2_score(self, job):
         submit_time = job.submit_time
@@ -124,6 +124,22 @@ class HPCEnv(gym.Env):
         # run_time = job.run_time
         # f2: r^(1/2)*n + 25600 * log10(s)
         return (np.sqrt(request_time) * request_processors + 25600 * np.log10(submit_time))
+
+    def f3_score(self, job):
+        submit_time = job.submit_time
+        request_processors = job.request_number_of_processors
+        request_time = job.request_time
+        # run_time = job.run_time
+        # f3: r * n + 6860000 * log10(s)
+        return (request_time * request_processors + 6860000 * np.log10(submit_time))
+
+    def f4_score(self, job):
+        submit_time = job.submit_time
+        request_processors = job.request_number_of_processors
+        request_time = job.request_time
+        # run_time = job.run_time
+        # f4: r * sqrt(n) + 530000 * log10(s)
+        return (request_time * np.sqrt(request_processors) + 530000 * np.log10(submit_time))
 
     def sjf_score(self, job):
         # run_time = job.run_time
@@ -206,7 +222,9 @@ class HPCEnv(gym.Env):
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))
 
         return self.build_observation()
 

@@ -46,6 +46,8 @@ def run_policy(env, get_probs, get_value, nums, iters):
     rl_r = []
     f1_r = [] 
     f2_r = []
+    f3_r = []
+    f4_r = []
     sjf_r = []
     small_r = []
     fcfs_r = []
@@ -54,6 +56,9 @@ def run_policy(env, get_probs, get_value, nums, iters):
         env.reset_for_test(nums)
         f1_r.append(sum(env.schedule_curr_sequence_reset(env.f1_score).values()))
         f2_r.append(sum(env.schedule_curr_sequence_reset(env.f2_score).values()))
+        f3_r.append(sum(env.schedule_curr_sequence_reset(env.f3_score).values()))
+        f4_r.append(sum(env.schedule_curr_sequence_reset(env.f4_score).values()))
+        
         sjf_r.append(sum(env.schedule_curr_sequence_reset(env.sjf_score).values()))
         small_r.append(sum(env.schedule_curr_sequence_reset(env.smallest_score).values()))
         fcfs_r.append(sum(env.schedule_curr_sequence_reset(env.fcfs_score).values()))
@@ -79,9 +84,11 @@ def run_policy(env, get_probs, get_value, nums, iters):
     #all_data.append(fcfs_r)
     all_data.append(rl_r)
     all_data.append(sjf_r)
-    all_data.append(f2_r)
-    all_data.append(f1_r)
     all_data.append(small_r)
+    all_data.append(f1_r)
+    all_data.append(f2_r)
+    all_data.append(f3_r)
+    all_data.append(f4_r)
 
     all_medians = []
     for p in all_data:
@@ -97,12 +104,14 @@ def run_policy(env, get_probs, get_value, nums, iters):
     plt.plot(xticks[2:3], all_data[2:3], 'o', color='darkorange')
     plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange')
     plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
+    plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange')
+    plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange')
 
     plt.boxplot(all_data, showfliers=False)
 
     axes.yaxis.grid(True)
     axes.set_xticks([y + 1 for y in range(len(all_data))])
-    xticklabels = ['RL', 'SJF', 'F2', 'F1', 'SMALL']
+    xticklabels = ['RL', 'SJF', 'SMALL', 'F1', 'F2', 'F3', 'F4']
     plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
              xticklabels=xticklabels)
 
