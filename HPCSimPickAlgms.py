@@ -97,7 +97,8 @@ class HPCEnv(gym.Env):
         self.enable_preworkloads = True
         self.pre_workloads = []
 
-        self.algm_fn = [self.sjf_score, self.smallest_score, self.fcfs_score, self.f1_score, self.f2_score]
+        self.algm_fn = [self.sjf_score, self.smallest_score, self.fcfs_score]
+        # , self.fcfs_score, self.f1_score, self.f2_score]
 
     def my_init(self, workload_file = '', sched_file = ''):
         print ("loading workloads from dataset:", workload_file)
@@ -114,7 +115,6 @@ class HPCEnv(gym.Env):
         request_processors = job.request_number_of_processors
         request_time = job.request_time
         # run_time = job.run_time
-        assert job.job_id != 0
         return (np.log10(request_processors) * request_time + 870 * np.log10(submit_time))
 
     def f2_score(self, job):
@@ -122,24 +122,24 @@ class HPCEnv(gym.Env):
         request_processors = job.request_number_of_processors
         request_time = job.request_time
         # run_time = job.run_time
-        assert job.job_id != 0
         # f2: r^(1/2)*n + 25600 * log10(s)
         return (np.sqrt(request_time) * request_processors + 25600 * np.log10(submit_time))
 
     def sjf_score(self, job):
         # run_time = job.run_time
         request_time = job.request_time
-        assert job.job_id != 0
-        return request_time
+        submit_time = job.submit_time
+        # if request_time is the same, pick whichever submitted earlier 
+        return (request_time, submit_time)
     
     def smallest_score(self, job):
         request_processors = job.request_number_of_processors
-        assert job.job_id != 0
-        return request_processors
+        submit_time = job.submit_time
+        # if request_time is the same, pick whichever submitted earlier 
+        return (request_processors, submit_time)
 
     def fcfs_score(self, job):
         submit_time = job.submit_time
-        assert job.job_id != 0
         return submit_time
 
     def gen_preworkloads(self, size):
@@ -192,7 +192,6 @@ class HPCEnv(gym.Env):
         
         # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
         self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
-        # self.start = 1208
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
