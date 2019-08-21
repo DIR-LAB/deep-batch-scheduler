@@ -64,7 +64,7 @@ def run_policy(env, get_probs, get_value, nums, iters):
         while True:
             action_probs = get_probs(o)
             # v_t = get_value(o)
-            # print ("action_probs:", action_probs)
+            # print ("action_probs:", action_probs, end=" ")
             a = np.argmax(action_probs)
             print (a, end=" ")
             o, r, d, _ = env.step_for_test(a)
