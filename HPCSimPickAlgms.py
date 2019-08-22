@@ -403,8 +403,30 @@ class HPCEnv(gym.Env):
         else:
             return False
 
-    def schedule(self, job_for_scheduling):
+    def skip_schedule(self):
+        # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
+        next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
+        next_resource_release_machines = []
+        if self.running_jobs:  # there are running jobs
+            self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+            next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+            next_resource_release_machines = self.running_jobs[0].allocated_machines
 
+        if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
+            assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
+            self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+            self.job_queue.append(self.loads[self.next_arriving_job_idx])
+            self.next_arriving_job_idx += 1
+        else:
+            if not self.running_jobs:
+                return False
+            assert self.current_timestamp <= next_resource_release_time
+            self.current_timestamp = next_resource_release_time
+            self.cluster.release(next_resource_release_machines)
+            self.running_jobs.pop(0)  # remove the first running job.
+        return False
+        
+    def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
             self.moveforward_for_resources(job_for_scheduling)
@@ -436,25 +458,25 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        fn = self.algm_fn[a]
-        self.visible_jobs.sort(key=lambda j: fn(j))
-        job_for_scheduling = self.visible_jobs[0]
-        done = self.schedule(job_for_scheduling)
+        if a < 2:
+            fn = self.algm_fn[a]
+            self.visible_jobs.sort(key=lambda j: fn(j))
+            job_for_scheduling = self.visible_jobs[0]
+            done = self.schedule(job_for_scheduling)
+        else:
+            done = self.skip_schedule()
 
         if not done:
             obs = self.build_observation()
             return [obs, 0, False, None]
         else:
             rl_total = sum(self.scheduled_rl.values())
-            #print (self.scheduled_f1)
-            #print ("------------------------")
-            #print (self.scheduled_rl)
-            best_total = min(self.scheduled_scores) #self.scheduled_scores[0]
+            best_total = min(self.scheduled_scores) 
             # rwd = (best_total - rl_total)
             
-            if (best_total * 1.1) < rl_total:
+            if (best_total) < rl_total:
                 rwd = -1
-            elif best_total > (rl_total * 1.1):
+            elif best_total > (rl_total):
                 rwd = 1
             else:
                 rwd = 0
@@ -462,10 +484,13 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        fn = self.algm_fn[a]
-        self.visible_jobs.sort(key=lambda j: fn(j))
-        job_for_scheduling = self.visible_jobs[0]
-        done = self.schedule(job_for_scheduling)
+        if a < 2:
+            fn = self.algm_fn[a]
+            self.visible_jobs.sort(key=lambda j: fn(j))
+            job_for_scheduling = self.visible_jobs[0]
+            done = self.schedule(job_for_scheduling)
+        else:
+            done = self.skip_schedule()
 
         if not done:
             obs = self.build_observation()

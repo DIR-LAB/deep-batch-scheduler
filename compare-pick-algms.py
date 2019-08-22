@@ -70,7 +70,8 @@ def run_policy(env, get_probs, get_value, nums, iters):
             action_probs = get_probs(o)
             # v_t = get_value(o)
             # print ("action_probs:", action_probs, end=" ")
-            a = np.argmax(action_probs)
+            # a = np.argmax(action_probs)
+            a = np.random.choice(np.arange(len(action_probs)), p=action_probs)
             print (a, end=" ")
             o, r, d, _ = env.step_for_test(a)
             rl += r
