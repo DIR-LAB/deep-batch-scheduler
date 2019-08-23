@@ -263,24 +263,23 @@ class HPCEnv(gym.Env):
             self.job_queue.sort(key=lambda j: score_fn(j))
             job_for_scheduling = self.job_queue[0]
 
-            # make sure we move forward and release needed resources
+            # if selected job needs more resources, skip scheduling and try again after adding new jobs or releasing some resources
             if not self.cluster.can_allocated(job_for_scheduling):
-                self.moveforward_for_resources(job_for_scheduling)
-            
-            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-
-            job_for_scheduling.scheduled_time = self.current_timestamp
-            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                # self.moveforward_for_resources(job_for_scheduling)
+                self.skip_schedule()
+            else:
+                assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+                job_for_scheduling.scheduled_time = self.current_timestamp
+                job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
                                                                             job_for_scheduling.request_number_of_processors)
-            self.running_jobs.append(job_for_scheduling)
-            score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
-            scheduled_logs[job_for_scheduling.job_id] = score
-            self.job_queue.remove(job_for_scheduling)
+                self.running_jobs.append(job_for_scheduling)
+                score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
+                scheduled_logs[job_for_scheduling.job_id] = score
+                self.job_queue.remove(job_for_scheduling)
 
-            not_empty = self.moveforward_for_job()
-
-            if not not_empty:
-                break
+                not_empty = self.moveforward_for_job()
+                if not not_empty:
+                    break
 
         # reset again
         self.cluster.reset()
