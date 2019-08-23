@@ -25,7 +25,7 @@ def basic_cnn(x_ph, act_dim):
     x = tf.reshape(x_ph, shape=[-1, 6, 6, JOB_FEATURES])
     conv1 = tf.layers.conv2d(
             inputs=x,
-            filters=64,
+            filters=32,
             kernel_size=[1, 1],
             strides=1,
             activation=tf.nn.relu
@@ -50,7 +50,7 @@ def basic_cnn(x_ph, act_dim):
     flat = tf.reshape(pool2, [-1, 2 * 2 * 32])
     dense = tf.layers.dense(
             inputs=flat,
-            units=256,
+            units=128,
             activation=tf.nn.relu
     )
     dropout = tf.layers.dropout(
