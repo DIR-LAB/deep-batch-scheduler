@@ -29,8 +29,8 @@ JOB_FEATURES = 4
 DEBUG = False
 
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
-JOB_SEQUENCE_SIZE = 16
-ALGMS_SIZE = 4
+JOB_SEQUENCE_SIZE = 64
+ALGMS_SIZE = 8
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -97,8 +97,7 @@ class HPCEnv(gym.Env):
         self.enable_preworkloads = True
         self.pre_workloads = []
 
-        self.algm_fn = [self.sjf_score, self.smallest_score, self.fcfs_score]
-        # , self.fcfs_score, self.f1_score, self.f2_score]
+        self.algm_fn = [self.sjf_score, self.smallest_score, self.fcfs_score, self.f1_score, self.f2_score, self.f3_score, self.f4_score]
 
     def my_init(self, workload_file = '', sched_file = ''):
         print ("loading workloads from dataset:", workload_file)
@@ -218,9 +217,9 @@ class HPCEnv(gym.Env):
         if self.enable_preworkloads:
             self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
 
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
@@ -457,7 +456,7 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        if a < 3:   # no skip from RL agent
+        if a < 7:   # no skip from RL agent
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
