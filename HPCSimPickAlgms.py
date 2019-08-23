@@ -30,7 +30,7 @@ DEBUG = False
 
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
 JOB_SEQUENCE_SIZE = 32
-ALGMS_SIZE = 3
+ALGMS_SIZE = 4
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -476,7 +476,7 @@ class HPCEnv(gym.Env):
             if (best_total) < rl_total:
                 rwd = -1
             elif best_total > (rl_total):
-                rwd = 1
+                rwd = 5
             else:
                 rwd = 0
             
