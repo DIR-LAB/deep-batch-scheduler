@@ -428,36 +428,36 @@ class HPCEnv(gym.Env):
     def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
-            self.moveforward_for_resources(job_for_scheduling)
-
-        # we should be OK to schedule the job now
-        assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-        job_for_scheduling.scheduled_time = self.current_timestamp
-        job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id, job_for_scheduling.request_number_of_processors)
-        self.running_jobs.append(job_for_scheduling)
-
-        score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
-        self.scheduled_rl[job_for_scheduling.job_id] = score
-        self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
-
-        # after scheduling, check if job queue is empty, try to add jobs. 
-        not_empty = self.moveforward_for_job()
-
-        if not_empty:
-            # job_queue is not empty
-            return False
+            #self.moveforward_for_resources(job_for_scheduling)
+            self.skip_schedule()
         else:
-            # job_queue is empty and can not add new jobs as we reach the end of the sequence
-            # f1_total = sum(self.scheduled_f1.values())
-            # rl_total = sum(self.scheduled_rl.values())
-            return True
+            # we should be OK to schedule the job now
+            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+            job_for_scheduling.scheduled_time = self.current_timestamp
+            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id, job_for_scheduling.request_number_of_processors)
+            self.running_jobs.append(job_for_scheduling)
+            score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
+            self.scheduled_rl[job_for_scheduling.job_id] = score
+            self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
+
+            # after scheduling, check if job queue is empty, try to add jobs. 
+            not_empty = self.moveforward_for_job()
+
+            if not_empty:
+                # job_queue is not empty
+                return False
+            else:
+                # job_queue is empty and can not add new jobs as we reach the end of the sequence
+                # f1_total = sum(self.scheduled_f1.values())
+                # rl_total = sum(self.scheduled_rl.values())
+                return True
 
     def valid(self, a):
         action = a[0]
         return self.pairs[action][0]
         
     def step(self, a):
-        if a < 2:
+        if a < 3:   # no skip from RL agent
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
