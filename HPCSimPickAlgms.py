@@ -470,15 +470,15 @@ class HPCEnv(gym.Env):
         else:
             rl_total = sum(self.scheduled_rl.values())
             best_total = min(self.scheduled_scores) 
-            # rwd = (best_total - rl_total)
-            
+            rwd = (best_total - rl_total)
+            '''
             if (best_total) < rl_total:
                 rwd = -1
             elif best_total > (rl_total):
-                rwd = 5
+                rwd = 1
             else:
                 rwd = 0
-            
+            '''
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
