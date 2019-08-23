@@ -84,7 +84,7 @@ def run_policy(env, get_probs, get_value, nums, iters):
     all_data = []
     #all_data.append(fcfs_r)
     all_data.append(rl_r)
-    all_data.append(sjf_r)
+    #all_data.append(sjf_r)
     all_data.append(small_r)
     all_data.append(f1_r)
     all_data.append(f2_r)
@@ -106,13 +106,13 @@ def run_policy(env, get_probs, get_value, nums, iters):
     plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange')
     plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
     plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange')
-    plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange')
+    #plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange')
 
     plt.boxplot(all_data, showfliers=False)
 
     axes.yaxis.grid(True)
     axes.set_xticks([y + 1 for y in range(len(all_data))])
-    xticklabels = ['RL', 'SJF', 'SMALL', 'F1', 'F2', 'F3', 'F4']
+    xticklabels = ['RL', 'SMALL', 'F1', 'F2', 'F3', 'F4']
     plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
              xticklabels=xticklabels)
 
