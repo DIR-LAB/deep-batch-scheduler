@@ -482,7 +482,7 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        if a < 2:
+        if a < 7:
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
