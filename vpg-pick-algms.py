@@ -93,7 +93,7 @@ Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    output_layer = basic_cnn(x, act_dim)
+    output_layer = mlp(x, act_dim)
     action_probs = tf.squeeze(tf.nn.softmax(output_layer))
     log_picked_action_prob = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * tf.nn.log_softmax(output_layer), axis=1)    
     return action_probs, log_picked_action_prob
@@ -105,7 +105,7 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         action_probs, log_picked_action_prob = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        v = tf.squeeze(mlp(x, 1), axis=1)
     return action_probs, log_picked_action_prob, v
 
 class VPGBuffer:
@@ -329,7 +329,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=1)
     parser.add_argument('--trajs', type=int, default=100)
     parser.add_argument('--epochs', type=int, default=4000)
-    parser.add_argument('--exp_name', type=str, default='vpg-pick-algms')
+    parser.add_argument('--exp_name', type=str, default='vpg-32')
     parser.add_argument('--pre_trained', type=int, default=0)
     parser.add_argument('--trained_model', type=str, default='./data/logs/reinforce-model/reinforce-s0/')
 

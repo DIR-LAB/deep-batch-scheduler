@@ -29,7 +29,7 @@ JOB_FEATURES = 4
 DEBUG = False
 
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
-JOB_SEQUENCE_SIZE = 64
+JOB_SEQUENCE_SIZE = 32
 ALGMS_SIZE = 8
 
 def combined_shape(length, shape=None):
@@ -464,21 +464,23 @@ class HPCEnv(gym.Env):
         else:
             done = self.skip_schedule()
 
+        # if there is only one job, it does not matter which algorithm we choose. This could confuse the agent
+        while not done and self.has_only_one_job():
+            done = self.schedule(self.job_queue[0])
+        
         if not done:
             obs = self.build_observation()
             return [obs, 0, False, None]
         else:
             rl_total = sum(self.scheduled_rl.values())
             best_total = min(self.scheduled_scores) 
-            rwd = (best_total - rl_total)
-            '''
+            # rwd = (best_total - rl_total)
             if (best_total) < rl_total:
                 rwd = -1
             elif best_total > (rl_total):
                 rwd = 1
             else:
                 rwd = 0
-            '''
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
