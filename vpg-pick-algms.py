@@ -93,7 +93,7 @@ Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    output_layer = mlp(x, act_dim)
+    output_layer = basic_cnn(x, act_dim)
     action_probs = tf.squeeze(tf.nn.softmax(output_layer))
     log_picked_action_prob = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * tf.nn.log_softmax(output_layer), axis=1)    
     return action_probs, log_picked_action_prob
@@ -105,7 +105,7 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         action_probs, log_picked_action_prob = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(mlp(x, 1), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
     return action_probs, log_picked_action_prob, v
 
 class VPGBuffer:
