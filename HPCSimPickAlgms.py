@@ -30,7 +30,7 @@ DEBUG = False
 
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
 JOB_SEQUENCE_SIZE = 64
-ALGMS_SIZE = 7
+ALGMS_SIZE = 8
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -461,12 +461,12 @@ class HPCEnv(gym.Env):
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
             done = self.schedule(job_for_scheduling)
+
+            # if there is only one job, it does not matter which algorithm we choose. This could confuse the agent
+            while not done and self.has_only_one_job():
+                done = self.schedule(self.job_queue[0])
         else:
             done = self.skip_schedule()
-
-        # if there is only one job, it does not matter which algorithm we choose. This could confuse the agent
-        while not done and self.has_only_one_job():
-            done = self.schedule(self.job_queue[0])
 
         if not done:
             obs = self.build_observation()
