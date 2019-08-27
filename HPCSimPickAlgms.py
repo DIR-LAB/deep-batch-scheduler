@@ -427,8 +427,8 @@ class HPCEnv(gym.Env):
     def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
-            #self.moveforward_for_resources(job_for_scheduling)
-            self.skip_schedule()
+            self.moveforward_for_resources(job_for_scheduling)
+            #self.skip_schedule()
         else:
             # we should be OK to schedule the job now
             assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
@@ -464,11 +464,9 @@ class HPCEnv(gym.Env):
         else:
             done = self.skip_schedule()
 
-        '''
         # if there is only one job, it does not matter which algorithm we choose. This could confuse the agent
         while not done and self.has_only_one_job():
             done = self.schedule(self.job_queue[0])
-        '''
 
         if not done:
             obs = self.build_observation()
