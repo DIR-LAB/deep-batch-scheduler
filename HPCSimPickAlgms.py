@@ -30,7 +30,7 @@ DEBUG = False
 
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
 JOB_SEQUENCE_SIZE = 64
-ALGMS_SIZE = 8
+ALGMS_SIZE = 7
 
 def combined_shape(length, shape=None):
     if shape is None:
