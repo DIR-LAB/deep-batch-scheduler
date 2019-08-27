@@ -331,7 +331,7 @@ class HPCEnv(gym.Env):
             else:
                 self.pairs.append([None,0,1,1,0])
 
-        # random.shuffle(self.pairs)   # agent sees jobs in random order
+        random.shuffle(self.pairs)   # agent sees jobs in random order
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
@@ -427,8 +427,8 @@ class HPCEnv(gym.Env):
     def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
-            self.moveforward_for_resources(job_for_scheduling)
-            #self.skip_schedule()
+            #self.moveforward_for_resources(job_for_scheduling)
+            self.skip_schedule()
         else:
             # we should be OK to schedule the job now
             assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
