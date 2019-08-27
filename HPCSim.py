@@ -482,10 +482,6 @@ class HPCEnv(gym.Env):
         job_for_scheduling = self.pairs[a][0]
         done = self.schedule(job_for_scheduling)
 
-        # if there is only one job, go forward to schedule it, do not confuse the agent.
-        while not done and self.has_only_one_job():
-            done = self.schedule(self.job_queue[0])
-
         if not done:
             obs = self.build_observation()
             return [obs, 0, False, None]

@@ -17,7 +17,7 @@ from spinup.utils.logx import restore_tf_graph
 np.set_printoptions(threshold=np.inf)
 
 def mlp(x, act_dim):
-    for _ in range(4):
+    for _ in range(8):
         x = tf.layers.dense(x, units=MLP_SIZE, activation=tf.tanh)
     return tf.layers.dense(x, units=act_dim, activation=tf.tanh)
 

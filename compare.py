@@ -87,7 +87,8 @@ def run_policy(env, get_probs, get_value, nums, iters):
                 print("nan:---------->observation:\n", o, "\nlegal_action_probs", legal_action_probs, "\naction_probs", action_probs)
                 return
 
-            a = np.argmax(legal_action_probs)
+            # a = np.argmax(legal_action_probs)
+            a = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=legal_action_probs)
             print (a, end=" ")
             o, r, d, _ = env.step_for_test(a)
             rl += r
@@ -98,10 +99,11 @@ def run_policy(env, get_probs, get_value, nums, iters):
 
     # plot
     all_data = []
-    #all_data.append(fcfs_r)
     all_data.append(rl_r)
     all_data.append(sjf_r)
     all_data.append(small_r)
+    #all_data.append(fcfs_r)
+    
     all_data.append(f1_r)
     all_data.append(f2_r)
     all_data.append(f3_r)
