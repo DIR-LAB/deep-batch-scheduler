@@ -331,7 +331,7 @@ class HPCEnv(gym.Env):
             else:
                 self.pairs.append([None,0,1,1,0])
 
-        random.shuffle(self.pairs)   # agent sees jobs in random order
+        #random.shuffle(self.pairs)   # agent sees jobs in random order
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
