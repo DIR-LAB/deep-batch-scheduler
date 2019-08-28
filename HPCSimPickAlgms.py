@@ -400,8 +400,6 @@ class HPCEnv(gym.Env):
 
     def skip_schedule(self):
         # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
-        self.current_timestamp += SCHEDULE_DELAY  # everytime, the useless scheduling consumes some time. 
-
         next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
         next_resource_release_machines = []
         if self.running_jobs:  # there are running jobs
@@ -453,6 +451,8 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
+        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+        
         if a < 7:   # no skip from RL agent
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
