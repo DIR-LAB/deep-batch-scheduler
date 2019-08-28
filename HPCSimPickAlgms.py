@@ -479,6 +479,8 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
+        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+        
         if a < 7:
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
