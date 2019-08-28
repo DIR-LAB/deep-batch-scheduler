@@ -31,6 +31,7 @@ DEBUG = False
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
 JOB_SEQUENCE_SIZE = 64
 ALGMS_SIZE = 8
+SCHEDULE_DELAY = 5
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -347,13 +348,11 @@ class HPCEnv(gym.Env):
                 
             if self.next_arriving_job_idx < self.last_job_in_batch \
             and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-                assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
-                self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
                 self.job_queue.append(self.loads[self.next_arriving_job_idx])
                 self.next_arriving_job_idx += 1
             else:
-                assert self.current_timestamp <= next_resource_release_time
-                self.current_timestamp = next_resource_release_time
+                self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job
     
@@ -376,14 +375,12 @@ class HPCEnv(gym.Env):
                 next_resource_release_machines = self.running_jobs[0].allocated_machines
 
             if self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-                assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
-                self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
                 self.job_queue.append(self.loads[self.next_arriving_job_idx])
                 self.next_arriving_job_idx += 1
                 return True     # job added
             else:
-                assert self.current_timestamp <= next_resource_release_time
-                self.current_timestamp = next_resource_release_time
+                self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job.
             
@@ -403,6 +400,8 @@ class HPCEnv(gym.Env):
 
     def skip_schedule(self):
         # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
+        self.current_timestamp += SCHEDULE_DELAY  # everytime, the useless scheduling consumes some time. 
+
         next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
         next_resource_release_machines = []
         if self.running_jobs:  # there are running jobs
@@ -411,15 +410,13 @@ class HPCEnv(gym.Env):
             next_resource_release_machines = self.running_jobs[0].allocated_machines
 
         if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-            assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
-            self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+            self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
             self.job_queue.append(self.loads[self.next_arriving_job_idx])
             self.next_arriving_job_idx += 1
         else:
             if not self.running_jobs:
                 return False
-            assert self.current_timestamp <= next_resource_release_time
-            self.current_timestamp = next_resource_release_time
+            self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
             self.cluster.release(next_resource_release_machines)
             self.running_jobs.pop(0)  # remove the first running job.
         return False
@@ -461,10 +458,6 @@ class HPCEnv(gym.Env):
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
             done = self.schedule(job_for_scheduling)
-
-            # if there is only one job, it does not matter which algorithm we choose. This could confuse the agent
-            while not done and self.has_only_one_job():
-                done = self.schedule(self.job_queue[0])
         else:
             done = self.skip_schedule()
 
