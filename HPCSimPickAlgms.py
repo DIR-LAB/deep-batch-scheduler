@@ -25,7 +25,7 @@ MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
 # each job has three features: wait_time, requested_node, runtime, machine states,
-JOB_FEATURES = 5
+JOB_FEATURES = 4
 DEBUG = False
 
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
@@ -221,7 +221,7 @@ class HPCEnv(gym.Env):
 
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
@@ -304,21 +304,16 @@ class HPCEnv(gym.Env):
         vector = np.zeros((MAX_QUEUE_SIZE) * JOB_FEATURES, dtype=float)
         self.job_queue.sort(key=lambda job: self.sjf_score(job))
         self.visible_jobs = []
-        for i in range(0, MAX_QUEUE_SIZE):
+        for i in range(0, MAX_QUEUE_SIZE - 1):
             if i < len(self.job_queue):
                 self.visible_jobs.append(self.job_queue[i])
             else:
                 break
-        self.visible_jobs.sort(key=lambda j: self.fcfs_score(j))
+        self.visible_jobs.sort(key=lambda j: self.sjf_score(j))
         # random.shuffle(self.visible_jobs)
 
-        if self.pivot_job:
-            pivot_flag = 1
-        else:
-            pivot_flag = 0
-
         self.pairs = []
-        for i in range(0, MAX_QUEUE_SIZE):
+        for i in range(0, MAX_QUEUE_SIZE - 1):
             if i < len(self.visible_jobs):
                 job = self.visible_jobs[i]
                 submit_time = job.submit_time
@@ -334,11 +329,16 @@ class HPCEnv(gym.Env):
                     can_schedule_now = 1
                 else:
                     can_schedule_now = 0
-                self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now, pivot_flag])        
+                self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now])        
             else:
-                self.pairs.append([None, 0, 1, 1, 0, pivot_flag])
+                self.pairs.append([None, 0, 1, 1, 0])
 
         #random.shuffle(self.pairs)   # agent sees jobs in random order
+
+        if self.pivot_job:
+            self.pairs.append([None, 1, 1, 1, 1])
+        else:
+            self.pairs.append([None, 0, 1, 1, 0])
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
