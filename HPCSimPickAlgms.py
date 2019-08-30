@@ -336,9 +336,9 @@ class HPCEnv(gym.Env):
         #random.shuffle(self.pairs)   # agent sees jobs in random order
 
         if self.pivot_job:
-            self.pairs[i+1] = [None, 1, 1, 1, 1]
+            self.pairs.append([None, 1, 1, 1, 1])
         else:
-            self.pairs[i+1] = [None, 0, 1, 1, 0]
+            self.pairs.append([None, 0, 1, 1, 0])
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
@@ -480,7 +480,8 @@ class HPCEnv(gym.Env):
         
     def step(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
-
+        penalty = 0
+        
         if a < 7:   # no skip from RL agent
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
