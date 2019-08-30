@@ -451,7 +451,7 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+        # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
 
         if a < 7:   # no skip from RL agent
             fn = self.algm_fn[a]
@@ -479,7 +479,7 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+        # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
         if a < 7:
             fn = self.algm_fn[a]
