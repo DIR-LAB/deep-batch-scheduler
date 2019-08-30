@@ -1,7 +1,9 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"  # disable GPU
+
 import numpy as np
 import tensorflow as tf
 import gym
-import os
 import sys
 import time
 from spinup.utils.logx import EpochLogger
@@ -79,7 +81,7 @@ class PPOBuffer:
     """
 
     def __init__(self, obs_dim, act_dim, size, gamma=0.99, lam=0.95):
-        size = size * 100 # assume the traj can be really long
+        size = size * 500 # assume the traj can be really long
         self.obs_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
         self.act_buf = np.zeros(combined_shape(size, act_dim), dtype=np.float32)
         self.adv_buf = np.zeros(size, dtype=np.float32)
