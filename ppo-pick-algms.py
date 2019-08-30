@@ -1,6 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="-1"  # disable GPU
-
+# os.environ["CUDA_VISIBLE_DEVICES"]="-1"  # disable GPU
 import numpy as np
 import tensorflow as tf
 import gym
