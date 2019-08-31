@@ -480,7 +480,7 @@ class HPCEnv(gym.Env):
             job_for_scheduling = self.visible_jobs[0]
             done = self.schedule(job_for_scheduling)
         else:
-            done= self.skip_schedule()
+            done = self.skip_schedule()
 
         if not done:
             obs = self.build_observation()
@@ -508,7 +508,7 @@ class HPCEnv(gym.Env):
             job_for_scheduling = self.visible_jobs[0]
             done = self.schedule(job_for_scheduling)
         else:
-            done, _ = self.skip_schedule()
+            done = self.skip_schedule()
 
         if not done:
             obs = self.build_observation()
