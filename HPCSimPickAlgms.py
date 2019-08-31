@@ -262,7 +262,7 @@ class HPCEnv(gym.Env):
         # schedule the sequence of jobs using heuristic algorithm. 
         scheduled_logs = {}
         while True:
-            self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+            # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
 
             self.job_queue.sort(key=lambda j: score_fn(j))
             job_for_scheduling = self.job_queue[0]
@@ -472,7 +472,7 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+        # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
         if a < 7:   # no skip from RL agent
             fn = self.algm_fn[a]
@@ -500,7 +500,7 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+        # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
         if a < 7:
             fn = self.algm_fn[a]
