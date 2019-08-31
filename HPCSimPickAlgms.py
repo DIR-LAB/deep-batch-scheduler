@@ -31,7 +31,7 @@ DEBUG = False
 # we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
 JOB_SEQUENCE_SIZE = 64
 ALGMS_SIZE = 8
-SCHEDULE_DELAY = 5
+SCHEDULE_DELAY = 10
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -262,6 +262,8 @@ class HPCEnv(gym.Env):
         # schedule the sequence of jobs using heuristic algorithm. 
         scheduled_logs = {}
         while True:
+            self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+
             self.job_queue.sort(key=lambda j: score_fn(j))
             job_for_scheduling = self.job_queue[0]
 
@@ -304,7 +306,7 @@ class HPCEnv(gym.Env):
         vector = np.zeros((MAX_QUEUE_SIZE) * JOB_FEATURES, dtype=float)
         self.job_queue.sort(key=lambda job: self.sjf_score(job))
         self.visible_jobs = []
-        for i in range(0, MAX_QUEUE_SIZE - 1):
+        for i in range(0, MAX_QUEUE_SIZE):
             if i < len(self.job_queue):
                 self.visible_jobs.append(self.job_queue[i])
             else:
@@ -313,7 +315,7 @@ class HPCEnv(gym.Env):
         # random.shuffle(self.visible_jobs)
 
         self.pairs = []
-        for i in range(0, MAX_QUEUE_SIZE - 1):
+        for i in range(0, MAX_QUEUE_SIZE):
             if i < len(self.visible_jobs):
                 job = self.visible_jobs[i]
                 submit_time = job.submit_time
@@ -334,11 +336,6 @@ class HPCEnv(gym.Env):
                 self.pairs.append([None, 0, 1, 1, 0])
 
         #random.shuffle(self.pairs)   # agent sees jobs in random order
-
-        if self.pivot_job:
-            self.pairs.append([None, 1, 1, 1, 1])
-        else:
-            self.pairs.append([None, 0, 1, 1, 0])
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
@@ -431,11 +428,7 @@ class HPCEnv(gym.Env):
             next_resource_release_machines = self.running_jobs[0].allocated_machines
 
         if self.next_arriving_job_idx >= self.last_job_in_batch and not self.running_jobs:
-            if not self.pivot_job:
-                self.pivot_job = True
-                return False, 0
-            else:
-                return False, (0 - 500)
+            return False
 
         if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
             self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
@@ -445,7 +438,7 @@ class HPCEnv(gym.Env):
             self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
             self.cluster.release(next_resource_release_machines)
             self.running_jobs.pop(0)  # remove the first running job.
-        return False, 0
+        return False
         
     def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
@@ -479,8 +472,7 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
-        penalty = 0
+        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
         if a < 7:   # no skip from RL agent
             fn = self.algm_fn[a]
@@ -488,11 +480,11 @@ class HPCEnv(gym.Env):
             job_for_scheduling = self.visible_jobs[0]
             done = self.schedule(job_for_scheduling)
         else:
-            done, penalty = self.skip_schedule()
+            done= self.skip_schedule()
 
         if not done:
             obs = self.build_observation()
-            return [obs, (0 + penalty), False, None]
+            return [obs, 0, False, None]
         else:
             rl_total = sum(self.scheduled_rl.values())
             best_total = min(self.scheduled_scores) 
@@ -508,7 +500,7 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
+        self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
         if a < 7:
             fn = self.algm_fn[a]
