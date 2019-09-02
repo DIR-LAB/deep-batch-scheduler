@@ -244,6 +244,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
             action_probs, v_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1)})
             state = o.reshape(1, 36, 4)
             
+            lst = []
             legal_job_idx = []
             for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
                 if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
