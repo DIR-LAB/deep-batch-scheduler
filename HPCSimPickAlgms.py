@@ -434,7 +434,7 @@ class HPCEnv(gym.Env):
                 self.pivot_job = True
                 return False, 0
             else:
-                return False, (0 - 100)
+                return False, 0
 
         if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
             self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
@@ -505,7 +505,7 @@ class HPCEnv(gym.Env):
             #    rwd = 1
             #else:
             #    rwd = 0
-            return [None, rwd + self.penalty, True, None]
+            return [None, rwd, True, None]
     
     def step_for_test(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 

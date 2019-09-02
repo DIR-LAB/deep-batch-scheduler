@@ -258,8 +258,20 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
         t = 0
         while True:
             action_probs, v_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1)})
-            action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
-            log_action_prob = np.log(action_probs[action])
+            
+            lst = []
+            for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
+                if o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
+                    lst.append(0)
+                else:
+                    lst.append(action_probs[int(i/JOB_FEATURES)])
+
+            legal_action_probs = np.array(lst)
+            total = legal_action_probs.sum()
+            legal_action_probs /= total
+
+            action = np.random.choice(np.arange(len(legal_action_probs)), p=legal_action_probs)
+            log_action_prob = np.log(legal_action_probs[action])
 
             # save and log
             buf.store(o, np.array(action), r, v_t, log_action_prob)
