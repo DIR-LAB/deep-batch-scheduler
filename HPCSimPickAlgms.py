@@ -28,8 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-# we have a really bad performance when training with 128 job sequence. Change it to 32 and see whether it would be better
-JOB_SEQUENCE_SIZE = 64
+JOB_SEQUENCE_SIZE = 48
 ALGMS_SIZE = 8
 SCHEDULE_DELAY = 5
 
