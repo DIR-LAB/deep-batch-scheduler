@@ -29,7 +29,7 @@ JOB_FEATURES = 4
 DEBUG = False
 
 JOB_SEQUENCE_SIZE = 48
-ALGMS_SIZE = 8
+ALGMS_SIZE = 4
 SCHEDULE_DELAY = 5
 
 def combined_shape(length, shape=None):
@@ -480,7 +480,7 @@ class HPCEnv(gym.Env):
     def step(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
 
-        if a < 7:   # no skip from RL agent
+        if a < 4:   # no skip from RL agent
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
@@ -510,7 +510,7 @@ class HPCEnv(gym.Env):
     def step_for_test(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
-        if a < 7:
+        if a < 4:
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
