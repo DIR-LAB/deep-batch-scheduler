@@ -29,7 +29,7 @@ JOB_FEATURES = 4
 DEBUG = False
 
 JOB_SEQUENCE_SIZE = 48
-ALGMS_SIZE = 4
+ALGMS_SIZE = 3
 SCHEDULE_DELAY = 5
 
 def combined_shape(length, shape=None):
@@ -266,8 +266,8 @@ class HPCEnv(gym.Env):
 
             # if selected job needs more resources, skip scheduling and try again after adding new jobs or releasing some resources
             if not self.cluster.can_allocated(job_for_scheduling):
-                # self.moveforward_for_resources(job_for_scheduling)
-                self.skip_for_resources()
+                self.moveforward_for_resources_backfill(job_for_scheduling)
+                # self.skip_for_resources()
             else:
                 assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
                 job_for_scheduling.scheduled_time = self.current_timestamp
@@ -344,8 +344,28 @@ class HPCEnv(gym.Env):
 
         return vector
 
-    def moveforward_for_resources(self, job):
+    def moveforward_for_resources_backfill(self, job):
+        #note that this function is only called when current job can not be scheduled.
+        assert not self.cluster.can_allocated(job)
+
+        earliest_start_time = self.current_timestamp
+        # sort all running jobs by estimated finish time
+        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.request_time))
+        free_processors = self.cluster.free_node * self.cluster.num_procs_per_node
+        for running_job in self.running_jobs:
+            free_processors += len(running_job.allocated_machines) * self.cluster.num_procs_per_node
+            earliest_start_time = (running_job.scheduled_time + running_job.request_time)
+            if free_processors >= job.request_number_of_processors:
+                break
+
         while not self.cluster.can_allocated(job):
+            # try to backfill as many jobs as possible. Use FCFS
+            self.job_queue.sort(key=lambda _j: self.fcfs_score(_j))
+            for _j in self.job_queue:
+                if self.cluster.can_allocated(_j) and (self.current_timestamp + _j.request_time) < earliest_start_time:
+                    self.schedule(_j)
+
+            # move to the next timestamp
             assert self.running_jobs
             self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
             next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
@@ -449,8 +469,8 @@ class HPCEnv(gym.Env):
     def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
-            #self.moveforward_for_resources(job_for_scheduling)
-            self.skip_for_resources()
+            self.moveforward_for_resources_backfill(job_for_scheduling)
+            # self.skip_for_resources()
         else:
             # we should be OK to schedule the job now
             assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
@@ -480,7 +500,7 @@ class HPCEnv(gym.Env):
     def step(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
 
-        if a < 3:   # no skip from RL agent
+        if a < 2:   # no skip from RL agent
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
@@ -508,7 +528,7 @@ class HPCEnv(gym.Env):
     def step_for_test(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
-        if a < 3:
+        if a < 2:
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
