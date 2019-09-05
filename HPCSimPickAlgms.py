@@ -218,9 +218,9 @@ class HPCEnv(gym.Env):
         if self.enable_preworkloads:
             self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
 
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
