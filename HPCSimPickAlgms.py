@@ -480,7 +480,7 @@ class HPCEnv(gym.Env):
     def step(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
 
-        if a < 4:   # no skip from RL agent
+        if a < 3:   # no skip from RL agent
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
@@ -510,7 +510,7 @@ class HPCEnv(gym.Env):
     def step_for_test(self, a):
         # self.current_timestamp += SCHEDULE_DELAY  # everytime, the scheduling consumes sometime. 
         
-        if a < 4:
+        if a < 3:
             fn = self.algm_fn[a]
             self.visible_jobs.sort(key=lambda j: fn(j))
             job_for_scheduling = self.visible_jobs[0]
