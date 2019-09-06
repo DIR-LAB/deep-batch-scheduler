@@ -68,10 +68,21 @@ def run_policy(env, get_probs, get_value, nums, iters):
         rl = 0
         while True:
             action_probs = get_probs(o)
-            # v_t = get_value(o)
-            # print ("action_probs:", action_probs, end=" ")
-            # a = np.argmax(action_probs)
-            a = np.random.choice(np.arange(len(action_probs)), p=action_probs)
+
+            pivot = False
+
+            i = (MAX_QUEUE_SIZE - 1) * JOB_FEATURES
+            if o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
+                pivot = True
+                
+            legal_action_probs = np.array(action_probs)
+            if pivot:
+                legal_action_probs[-1] = 0
+
+            total = legal_action_probs.sum()
+            legal_action_probs /= total
+
+            a = np.random.choice(np.arange(len(legal_action_probs)), p=legal_action_probs)
             print (a, end=" ")
             o, r, d, _ = env.step_for_test(a)
             rl += r
