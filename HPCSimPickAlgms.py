@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 48
+JOB_SEQUENCE_SIZE = 128
 ALGMS_SIZE = 3
 SCHEDULE_DELAY = 5
 
@@ -218,8 +218,8 @@ class HPCEnv(gym.Env):
         if self.enable_preworkloads:
             self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
 
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
@@ -516,13 +516,11 @@ class HPCEnv(gym.Env):
         else:
             rl_total = sum(self.scheduled_rl.values())
             best_total = min(self.scheduled_scores) 
-            rwd = (best_total - rl_total)
-            '''
+            #rwd = (best_total - rl_total)
             if (best_total) <= rl_total:
                 rwd = -1
             else:
                 rwd = 1    
-            '''
             return [None, rwd, True, None]
     
     def step_for_test(self, a):

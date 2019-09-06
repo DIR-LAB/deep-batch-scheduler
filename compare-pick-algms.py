@@ -19,6 +19,12 @@ import sys
 from HPCSimPickAlgms import *
 
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.font_manager import FontProperties
+fontP = FontProperties()
+fontP.set_size('small')
+
 plt.rcdefaults()
 
 def load_policy(model_path, itr='last'):
@@ -42,7 +48,7 @@ def load_policy(model_path, itr='last'):
     get_v = lambda x : sess.run(v, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES)})
     return get_probs, get_v
 
-def run_policy(env, get_probs, get_value, nums, iters):
+def run_policy(env, get_probs, get_value, nums, iters, model_file):
     rl_r = []
     f1_r = [] 
     f2_r = []
@@ -85,8 +91,8 @@ def run_policy(env, get_probs, get_value, nums, iters):
             a = np.random.choice(np.arange(len(legal_action_probs)), p=legal_action_probs)
             print (a, end=" ")
             o, r, d, _ = env.step_for_test(a)
-            rl += r
             if d:
+                rl = r
                 break
         rl_r.append(rl)
         print ("")
@@ -102,35 +108,34 @@ def run_policy(env, get_probs, get_value, nums, iters):
     all_data.append(f3_r)
     all_data.append(f4_r)
 
-    all_medians = []
-    for p in all_data:
-        all_medians.append(np.median(p))
+    pdf_file = os.path.join(model_file, "plot.pdf")
+    with PdfPages(pdf_file) as pdf:
+        # plt.rc("font", size=35)
+        plt.figure(figsize=(10, 5))
+        axes = plt.axes()
 
-    # plt.rc("font", size=35)
-    plt.figure(figsize=(16, 14))
-    axes = plt.axes()
+        xticks = [y + 1 for y in range(len(all_data))]
+        plt.plot(xticks[0:1], all_data[0:1], 'o', color='darkorange', markersize=2)
+        plt.plot(xticks[1:2], all_data[1:2], 'o', color='darkorange', markersize=2)
+        plt.plot(xticks[2:3], all_data[2:3], 'o', color='darkorange', markersize=2)
+        plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange', markersize=2)
+        plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange', markersize=2)
+        plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange', markersize=2)
+        plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange', markersize=2)
 
-    xticks = [y + 1 for y in range(len(all_data))]
-    plt.plot(xticks[0:1], all_data[0:1], 'o', color='darkorange')
-    plt.plot(xticks[1:2], all_data[1:2], 'o', color='darkorange')
-    plt.plot(xticks[2:3], all_data[2:3], 'o', color='darkorange')
-    plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange')
-    plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
-    plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange')
-    plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange')
+        plt.boxplot(all_data, meanline=False, showfliers=False)
 
-    plt.boxplot(all_data, showfliers=False)
+        axes.yaxis.grid(True)
+        axes.set_xticks([y + 1 for y in range(len(all_data))])
+        xticklabels = ['RL', 'SJF', 'SMALL', 'F1', 'F2', 'F3', 'F4']
+        plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
+                xticklabels=xticklabels)
 
-    axes.yaxis.grid(True)
-    axes.set_xticks([y + 1 for y in range(len(all_data))])
-    xticklabels = ['RL', 'SJF', 'SMALL', 'F1', 'F2', 'F3', 'F4']
-    plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
-             xticklabels=xticklabels)
+        plt.tick_params(axis='both', which='major')
+        plt.tick_params(axis='both', which='minor') #, labelsize=35
 
-    plt.tick_params(axis='both', which='major', labelsize=35)
-    plt.tick_params(axis='both', which='minor', labelsize=35)
-
-    plt.show()
+        #plt.show()
+        pdf.savefig(bbox_inches='tight')
 
 if __name__ == '__main__':
     import argparse
@@ -153,4 +158,4 @@ if __name__ == '__main__':
     env.my_init(workload_file=workload_file)
     env.seed(int(time.time()))
 
-    run_policy(env, get_probs, get_value, args.len, args.iter)
+    run_policy(env, get_probs, get_value, args.len, args.iter, model_file)
