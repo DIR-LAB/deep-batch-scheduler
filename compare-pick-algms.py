@@ -114,28 +114,28 @@ def run_policy(env, get_probs, get_value, nums, iters, model_file):
         plt.figure(figsize=(10, 5))
         axes = plt.axes()
 
-        xticks = [y + 1 for y in range(len(all_data))]
-        plt.plot(xticks[0:1], all_data[0:1], 'o', color='darkorange', markersize=2)
-        plt.plot(xticks[1:2], all_data[1:2], 'o', color='darkorange', markersize=2)
-        plt.plot(xticks[2:3], all_data[2:3], 'o', color='darkorange', markersize=2)
-        plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange', markersize=2)
-        plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange', markersize=2)
-        plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange', markersize=2)
-        plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange', markersize=2)
+        xticks = [y + 1 for y in range(len(all_data))] #darkorange
+        plt.plot(xticks[0:1], all_data[0:1], 'o', color='dodgerblue', markersize=2)
+        plt.plot(xticks[1:2], all_data[1:2], 'o', color='dodgerblue', markersize=2)
+        plt.plot(xticks[2:3], all_data[2:3], 'o', color='dodgerblue', markersize=2)
+        plt.plot(xticks[3:4], all_data[3:4], 'o', color='dodgerblue', markersize=2)
+        plt.plot(xticks[4:5], all_data[4:5], 'o', color='dodgerblue', markersize=2)
+        plt.plot(xticks[5:6], all_data[5:6], 'o', color='dodgerblue', markersize=2)
+        plt.plot(xticks[6:7], all_data[6:7], 'o', color='dodgerblue', markersize=2)
 
-        plt.boxplot(all_data, meanline=False, showfliers=False)
+        plt.boxplot(all_data, showfliers=False, widths=0.5, medianprops={"color":'dodgerblue'})
 
         axes.yaxis.grid(True)
         axes.set_xticks([y + 1 for y in range(len(all_data))])
-        xticklabels = ['RL', 'SJF', 'SMALL', 'F1', 'F2', 'F3', 'F4']
+        xticklabels = ['L2Skip', 'SJF', 'SMALL', 'F1', 'F2', 'F3', 'F4']
         plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
                 xticklabels=xticklabels)
 
         plt.tick_params(axis='both', which='major')
         plt.tick_params(axis='both', which='minor') #, labelsize=35
 
-        #plt.show()
-        pdf.savefig(bbox_inches='tight')
+        #plt.show() bbox_inches='tight'
+        pdf.savefig()
 
 if __name__ == '__main__':
     import argparse
