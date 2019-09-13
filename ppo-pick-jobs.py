@@ -8,7 +8,7 @@ from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 
-from HPCSim import *
+from HPCSimPickJobs import *
 
 def basic_cnn(x_ph, act_dim):
     x = tf.reshape(x_ph, shape=[-1, 6, 6, JOB_FEATURES])
@@ -328,7 +328,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--workload', type=str, default='./data/SDSC-SP2-1998-4.2-cln.swf')  # RICC-2010-2 lublin_256.swf
+    parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')  # RICC-2010-2 lublin_256.swf SDSC-SP2-1998-4.2-cln.swf
     parser.add_argument('--model', type=str, default='./data/lublin_256.schd')
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)

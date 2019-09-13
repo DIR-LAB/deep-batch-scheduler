@@ -16,7 +16,7 @@ import math
 import numpy as np
 import sys
 
-from HPCSim import *
+from HPCSimPickJobs import *
 
 import matplotlib.pyplot as plt
 plt.rcdefaults()
