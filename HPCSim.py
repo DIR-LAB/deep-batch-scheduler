@@ -28,8 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 32
-PENALTY_JOB_ID = -(128 * 10)
+JOB_SEQUENCE_SIZE = 64
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -91,6 +90,7 @@ class HPCEnv(gym.Env):
         self.bsld_algo_dict = {}
         self.scheduled_rl = {}
         self.penalty = 0
+        self.pivot_job = False
         self.scheduled_scores = []
 
         self.enable_preworkloads = True
@@ -196,6 +196,7 @@ class HPCEnv(gym.Env):
         self.num_job_in_batch = 0
         self.scheduled_rl = {}
         self.penalty = 0
+        self.pivot_job = False
         self.scheduled_scores = []
 
         job_sequence_size = JOB_SEQUENCE_SIZE
@@ -241,6 +242,7 @@ class HPCEnv(gym.Env):
         self.num_job_in_batch = 0
         self.scheduled_rl = {}
         self.penalty = 0
+        self.pivot_job = False
         self.scheduled_scores = []
 
         job_sequence_size = num
@@ -262,8 +264,8 @@ class HPCEnv(gym.Env):
 
             # if selected job needs more resources, skip scheduling and try again after adding new jobs or releasing some resources
             if not self.cluster.can_allocated(job_for_scheduling):
-                # self.moveforward_for_resources(job_for_scheduling)
-                self.skip_schedule()
+                self.moveforward_for_resources_backfill(job_for_scheduling)
+                # self.skip_for_resources()
             else:
                 assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
                 job_for_scheduling.scheduled_time = self.current_timestamp
@@ -308,7 +310,7 @@ class HPCEnv(gym.Env):
         # random.shuffle(self.visible_jobs)
 
         self.pairs = []
-        for i in range(0, MAX_QUEUE_SIZE): # always keep the last job as "do nothing and wait"
+        for i in range(0, MAX_QUEUE_SIZE - 1): # always keep the last job as "skip"
             if i < len(self.visible_jobs):
                 job = self.visible_jobs[i]
                 submit_time = job.submit_time
@@ -322,22 +324,45 @@ class HPCEnv(gym.Env):
                 normalized_run_time = min(float(request_time) / float(self.loads.max_exec_time), 1.0 - 1e-8)
                 normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1.0 - 1e-8)
                 if self.cluster.can_allocated(job):
-                    can_schedule_now = 1
+                    can_schedule_now = 0.999
                 else:
-                    can_schedule_now = 0
+                    can_schedule_now = 0.001
                 self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now])        
             else:
                 self.pairs.append([None,0,1,1,0])
 
-        # random.shuffle(self.pairs)   # agent sees jobs in random order
+        if self.pivot_job:
+            self.pairs.append([None, 1, 1, 1, 1])
+        else:
+            self.pairs.append([None, 0, 1, 1, 0])
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
 
         return vector
 
-    def moveforward_for_resources(self, job):
+    def moveforward_for_resources_backfill(self, job):
+        #note that this function is only called when current job can not be scheduled.
+        assert not self.cluster.can_allocated(job)
+
+        earliest_start_time = self.current_timestamp
+        # sort all running jobs by estimated finish time
+        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.request_time))
+        free_processors = self.cluster.free_node * self.cluster.num_procs_per_node
+        for running_job in self.running_jobs:
+            free_processors += len(running_job.allocated_machines) * self.cluster.num_procs_per_node
+            earliest_start_time = (running_job.scheduled_time + running_job.request_time)
+            if free_processors >= job.request_number_of_processors:
+                break
+
         while not self.cluster.can_allocated(job):
+            # try to backfill as many jobs as possible. Use FCFS
+            self.job_queue.sort(key=lambda _j: self.fcfs_score(_j))
+            for _j in self.job_queue:
+                if self.cluster.can_allocated(_j) and (self.current_timestamp + _j.request_time) < earliest_start_time:
+                    self.schedule(_j)
+
+            # move to the next timestamp
             assert self.running_jobs
             self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
             next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
@@ -345,16 +370,31 @@ class HPCEnv(gym.Env):
                 
             if self.next_arriving_job_idx < self.last_job_in_batch \
             and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-                assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
-                self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
                 self.job_queue.append(self.loads[self.next_arriving_job_idx])
                 self.next_arriving_job_idx += 1
             else:
-                assert self.current_timestamp <= next_resource_release_time
-                self.current_timestamp = next_resource_release_time
+                self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job
     
+    def skip_for_resources(self):
+        # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
+        assert self.running_jobs
+        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+        next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+        next_resource_release_machines = self.running_jobs[0].allocated_machines
+
+        if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
+            self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
+            self.job_queue.append(self.loads[self.next_arriving_job_idx])
+            self.next_arriving_job_idx += 1
+        else:
+            self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
+            self.cluster.release(next_resource_release_machines)
+            self.running_jobs.pop(0)  # remove the first running job.
+        return False
+
     def moveforward_for_job(self):
         if self.job_queue:
             return True
@@ -374,27 +414,14 @@ class HPCEnv(gym.Env):
                 next_resource_release_machines = self.running_jobs[0].allocated_machines
 
             if self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-                assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
-                self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+                self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
                 self.job_queue.append(self.loads[self.next_arriving_job_idx])
                 self.next_arriving_job_idx += 1
                 return True     # job added
             else:
-                assert self.current_timestamp <= next_resource_release_time
-                self.current_timestamp = next_resource_release_time
+                self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job.
-            
-    def create_penalty_job(self):
-        # if the agent picks an empty job, we punish it as if it schedules a job which requests all nodes, lasts maximal time, 
-        # another idea: if the agent picks an empty job, we consider it delays the scheduling. We can simply consider it is
-        # a job requesting 0 processors, running for a small time amount?
-        penalty_job = Job()
-        penalty_job.request_number_of_processors = self.cluster.total_node * self.cluster.num_procs_per_node
-        penalty_job.job_id = PENALTY_JOB_ID
-        penalty_job.submit_time = self.current_timestamp
-        penalty_job.run_time = self.loads.max_exec_time
-        return penalty_job
 
     def job_score(self, job_for_scheduling):
         _tmp = max(1.0, (float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
@@ -419,48 +446,37 @@ class HPCEnv(gym.Env):
             next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
             next_resource_release_machines = self.running_jobs[0].allocated_machines
 
+        if self.next_arriving_job_idx >= self.last_job_in_batch and not self.running_jobs:
+            if not self.pivot_job:
+                self.pivot_job = True
+                return False, 0
+            else:
+                return False, 0
+
         if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-            assert self.current_timestamp <= self.loads[self.next_arriving_job_idx].submit_time
-            self.current_timestamp = self.loads[self.next_arriving_job_idx].submit_time
+            self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
             self.job_queue.append(self.loads[self.next_arriving_job_idx])
             self.next_arriving_job_idx += 1
         else:
-            if not self.running_jobs:
-                return False
-            assert self.current_timestamp <= next_resource_release_time
-            self.current_timestamp = next_resource_release_time
+            self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
             self.cluster.release(next_resource_release_machines)
             self.running_jobs.pop(0)  # remove the first running job.
-        return False
+        return False, 0
 
     def schedule(self, job_for_scheduling):
-        # create penalty job for illegal action
-        if not job_for_scheduling:
-            job_for_scheduling = self.create_penalty_job()  # create the penalty job
-            # self.visible_jobs.sort(key=lambda j: self.sjf_score(j))
-            # job_for_scheduling = self.visible_jobs[-1]
-
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
-            # self.moveforward_for_resources(job_for_scheduling)
-            self.skip_schedule()
+            self.moveforward_for_resources_backfill(job_for_scheduling)
+            # self.skip_for_resources()
         else:
             # we should be OK to schedule the job now
             assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
             job_for_scheduling.scheduled_time = self.current_timestamp
             job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id, job_for_scheduling.request_number_of_processors)
             self.running_jobs.append(job_for_scheduling)
-
-            # if the job is a penalty job, no need to move it out of job queue as it was never inserted
-            if job_for_scheduling.job_id != PENALTY_JOB_ID:
-                score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
-                #reward = (self.scheduled_f1[job_for_scheduling.job_id] - score)
-                self.scheduled_rl[job_for_scheduling.job_id] = score
-                self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
-            else:
-                print ("Got Penalty Job")
-                # reward = (1 - self.penalty_job_score)
-                self.penalty += self.penalty_job_score
+            score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
+            self.scheduled_rl[job_for_scheduling.job_id] = score
+            self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
 
             # after scheduling, check if job queue is empty, try to add jobs. 
             not_empty = self.moveforward_for_job()
@@ -470,8 +486,6 @@ class HPCEnv(gym.Env):
                 return False
             else:
                 # job_queue is empty and can not add new jobs as we reach the end of the sequence
-                # f1_total = sum(self.scheduled_f1.values())
-                # rl_total = sum(self.scheduled_rl.values())
                 return True
 
     def valid(self, a):
@@ -479,27 +493,25 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        job_for_scheduling = self.pairs[a][0]
-        done = self.schedule(job_for_scheduling)
+        if a < MAX_QUEUE_SIZE - 1:
+            job_for_scheduling = self.pairs[a][0]
+            done = self.schedule(job_for_scheduling)
+        else:
+            done, p = self.skip_schedule()
 
         if not done:
             obs = self.build_observation()
             return [obs, 0, False, None]
         else:
             rl_total = sum(self.scheduled_rl.values())
-            #print (self.scheduled_f1)
-            #print ("------------------------")
-            #print (self.scheduled_rl)
             best_total = min(self.scheduled_scores)
-            #rwd = (best_total - rl_total)
+            rwd = (best_total - rl_total)
+            '''
             if (best_total) <= rl_total:
                 rwd = -1
             else:
                 rwd = 1    
-            #else best_total > (rl_total):
-            #    rwd = 1
-            #else:
-            #    rwd = 0
+            '''
             return [None, rwd, True, None]
     
     def step_for_test(self, a):

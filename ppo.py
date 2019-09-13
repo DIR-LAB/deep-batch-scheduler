@@ -10,30 +10,45 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 from HPCSim import *
 
-def dnn(x_ph, act_dim):
+def basic_cnn(x_ph, act_dim):
     x = tf.reshape(x_ph, shape=[-1, 6, 6, JOB_FEATURES])
     conv1 = tf.layers.conv2d(
             inputs=x,
-            filters=64,
+            filters=32,
             kernel_size=[1, 1],
             strides=1,
             activation=tf.nn.relu
     ) # 6 * 6
     pool1 = tf.layers.max_pooling2d(
             inputs=conv1,
-            pool_size=[6, 6],
+            pool_size=[2, 2],
             strides=1
-    ) # 1 * 1
-    flat = tf.reshape(pool1, [-1, 1 * 1 * 64])
+    ) # 5 * 5
+    conv2 = tf.layers.conv2d(
+            inputs=pool1,
+            filters=32,
+            kernel_size=[2, 2],
+            strides=1,
+            activation=tf.nn.relu
+    ) # 4 * 4
+    pool2 = tf.layers.max_pooling2d(
+            inputs=conv2,
+            pool_size=[2, 2],
+            strides=2
+    ) # 2 * 2
+    flat = tf.reshape(pool2, [-1, 2 * 2 * 32])
     dense = tf.layers.dense(
             inputs=flat,
-            units=256,
+            units=128,
             activation=tf.nn.relu
     )
-    return tf.layers.dense(
+    dropout = tf.layers.dropout(
             inputs=dense,
-            units=act_dim,
-            activation=None
+            rate=0.5,
+    )
+    return tf.layers.dense(
+            inputs=dropout,
+            units=act_dim
     )
 
 """
@@ -41,7 +56,7 @@ Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    output_layer = dnn(x, act_dim)
+    output_layer = basic_cnn(x, act_dim)
     action_probs = tf.squeeze(tf.nn.softmax(output_layer))    
     log_picked_action_prob = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * tf.nn.log_softmax(output_layer), axis=1)
     return action_probs, log_picked_action_prob
@@ -53,7 +68,7 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         action_probs, log_picked_action_prob = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(dnn(x, 1), axis=1)
+        v = tf.squeeze(basic_cnn(x, 1), axis=1)
     return action_probs, log_picked_action_prob, v
 
 class PPOBuffer:
@@ -242,12 +257,13 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
         t = 0
         while True:
             action_probs, v_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1)})
-            state = o.reshape(1, 36, 4)
-            
+                        
             lst = []
             legal_job_idx = []
             for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
                 if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
+                    lst.append(0)
+                elif o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
                     lst.append(0)
                 else:
                     lst.append(action_probs[int(i/JOB_FEATURES)])
@@ -312,7 +328,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')  # RICC-2010-2
+    parser.add_argument('--workload', type=str, default='./data/SDSC-SP2-1998-4.2-cln.swf')  # RICC-2010-2 lublin_256.swf
     parser.add_argument('--model', type=str, default='./data/lublin_256.schd')
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
