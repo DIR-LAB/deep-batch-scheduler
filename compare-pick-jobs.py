@@ -75,6 +75,8 @@ def run_policy(env, get_probs, get_value, nums, iters):
             for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
                 if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
                     lst.append(0)
+                elif o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
+                    lst.append(0)
                 else:
                     lst.append(action_probs[int(i/JOB_FEATURES)])
                     legal_job_idx.append(int(i/JOB_FEATURES))

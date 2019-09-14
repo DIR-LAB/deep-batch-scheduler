@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 64
+JOB_SEQUENCE_SIZE = 48
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -219,10 +219,10 @@ class HPCEnv(gym.Env):
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
 
         return self.build_observation()
 
@@ -320,13 +320,13 @@ class HPCEnv(gym.Env):
                 wait_time = self.current_timestamp - submit_time
 
                 # make sure that larger value is better.
-                normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1.0 - 1e-8)
-                normalized_run_time = min(float(request_time) / float(self.loads.max_exec_time), 1.0 - 1e-8)
-                normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs), 1.0 - 1e-8)
+                normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1.0 - 1e-5)
+                normalized_run_time = min(float(request_time) / float(self.loads.max_exec_time), 1.0 - 1e-5)
+                normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs),  1.0 - 1e-5)
                 if self.cluster.can_allocated(job):
-                    can_schedule_now = 0.999
+                    can_schedule_now = 1.0 - 1e-5
                 else:
-                    can_schedule_now = 0.001
+                    can_schedule_now = 1e-5
                 self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now])        
             else:
                 self.pairs.append([None,0,1,1,0])
@@ -334,7 +334,7 @@ class HPCEnv(gym.Env):
         if self.pivot_job:
             self.pairs.append([None, 1, 1, 1, 1])
         else:
-            self.pairs.append([None, 0, 1, 1, 0])
+            self.pairs.append([None, 1, 1, 1, 0])
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
