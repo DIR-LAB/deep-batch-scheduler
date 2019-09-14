@@ -515,8 +515,11 @@ class HPCEnv(gym.Env):
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        job_for_scheduling = self.pairs[a][0]
-        done = self.schedule(job_for_scheduling)
+        if a < MAX_QUEUE_SIZE - 1:
+            job_for_scheduling = self.pairs[a][0]
+            done = self.schedule(job_for_scheduling)
+        else:
+            done, p = self.skip_schedule()
 
         if not done:
             obs = self.build_observation()
