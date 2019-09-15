@@ -278,14 +278,16 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
                 return
             
             action = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=legal_action_probs)
-            log_action_prob = np.log(legal_action_probs[action])
+            # log_action_prob = np.log(legal_action_probs[action])
+            log_prob = np.log(action_probs[action])
             '''
             action = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=action_probs)
             log_action_prob = np.log(action_probs[action])
             '''
 
             # save and log
-            buf.store(o, np.array(action), r, v_t, log_action_prob)
+            # buf.store(o, np.array(action), r, v_t, log_action_prob)
+            buf.store(o, np.array(action), r, v_t, log_prob)
             logger.store(VVals=v_t)
 
             o, r, d, _ = env.step(action)
