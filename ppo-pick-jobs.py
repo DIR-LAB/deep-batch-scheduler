@@ -10,53 +10,17 @@ from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_sc
 
 from HPCSimPickJobs import *
 
-def basic_cnn(x_ph, act_dim):
-    x = tf.reshape(x_ph, shape=[-1, 6, 6, JOB_FEATURES])
-    conv1 = tf.layers.conv2d(
-            inputs=x,
-            filters=32,
-            kernel_size=[1, 1],
-            strides=1,
-            activation=tf.nn.relu
-    ) # 6 * 6
-    pool1 = tf.layers.max_pooling2d(
-            inputs=conv1,
-            pool_size=[2, 2],
-            strides=1
-    ) # 5 * 5
-    conv2 = tf.layers.conv2d(
-            inputs=pool1,
-            filters=32,
-            kernel_size=[2, 2],
-            strides=1,
-            activation=tf.nn.relu
-    ) # 4 * 4
-    pool2 = tf.layers.max_pooling2d(
-            inputs=conv2,
-            pool_size=[2, 2],
-            strides=2
-    ) # 2 * 2
-    flat = tf.reshape(pool2, [-1, 2 * 2 * 32])
-    dense = tf.layers.dense(
-            inputs=flat,
-            units=128,
-            activation=tf.nn.relu
-    )
-    dropout = tf.layers.dropout(
-            inputs=dense,
-            rate=0.5,
-    )
-    return tf.layers.dense(
-            inputs=dropout,
-            units=act_dim
-    )
+def mlp(x, act_dim):
+    for _ in range(3):
+        x = tf.layers.dense(x, units=64, activation=tf.tanh)
+    return tf.layers.dense(x, units=act_dim, activation=tf.tanh)
 
 """
 Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    output_layer = basic_cnn(x, act_dim)
+    output_layer = mlp(x, act_dim)
     action_probs = tf.squeeze(tf.nn.softmax(output_layer))    
     log_picked_action_prob = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * tf.nn.log_softmax(output_layer), axis=1)
     return action_probs, log_picked_action_prob
@@ -68,7 +32,7 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         action_probs, log_picked_action_prob = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(basic_cnn(x, 1), axis=1)
+        v = tf.squeeze(mlp(x, 1), axis=1)
     return action_probs, log_picked_action_prob, v
 
 class PPOBuffer:
