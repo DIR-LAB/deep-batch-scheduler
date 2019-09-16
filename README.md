@@ -49,10 +49,10 @@ ssh-add ~/...
 git clone git@github.com:DIR-LAB/deep-batch-scheduler.git
 ```
 
-### Usage
+### Default Training
 
 ```bash
-python vpg.py --exp_name what-ever-name-you-want --trajs how-many-trajs-in-each-epoch
+python ppo-pick-algms.py --exp_name what-ever-name-you-want --trajs 500 --seed 2
 ```
 There are manyother parameters in the source file.
 
