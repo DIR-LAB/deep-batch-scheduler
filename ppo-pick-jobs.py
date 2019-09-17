@@ -12,15 +12,34 @@ from HPCSimPickJobs import *
 
 def mlp(x, act_dim):
     for _ in range(3):
-        x = tf.layers.dense(x, units=64, activation=tf.tanh)
+        x = tf.layers.dense(x, units=32, activation=tf.tanh)
     return tf.layers.dense(x, units=act_dim, activation=tf.tanh)
+
+def dnn(x_ph, act_dim):
+    x = tf.reshape(x_ph, shape=[-1, 4, 4, JOB_FEATURES])
+    x = tf.layers.conv2d(
+            inputs=x,
+            filters=32,
+            kernel_size=[1, 1],
+            strides=1,
+            activation=tf.nn.relu
+    ) # 4 * 4
+    x = tf.reshape(x, [-1, 4 * 4 * 32])
+    for _ in range(2):
+        x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+
+    return tf.layers.dense(
+            inputs=x,
+            units=act_dim,
+            activation=None
+    )
 
 """
 Policies
 """
 def categorical_policy(x, a, action_space):
     act_dim = action_space.n
-    output_layer = mlp(x, act_dim)
+    output_layer = dnn(x, act_dim)
     action_probs = tf.squeeze(tf.nn.softmax(output_layer))    
     log_picked_action_prob = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * tf.nn.log_softmax(output_layer), axis=1)
     return action_probs, log_picked_action_prob
@@ -32,7 +51,7 @@ def actor_critic(x, a, action_space=None):
     with tf.variable_scope('pi'):
         action_probs, log_picked_action_prob = categorical_policy(x, a, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(mlp(x, 1), axis=1)
+        v = tf.squeeze(dnn(x, 1), axis=1)
     return action_probs, log_picked_action_prob, v
 
 class PPOBuffer:
