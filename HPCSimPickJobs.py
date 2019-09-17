@@ -180,6 +180,10 @@ class HPCEnv(gym.Env):
             self.running_jobs.append(_job)
             _job.allocated_machines = self.cluster.allocate(_job.job_id, _job.request_number_of_processors)    
 
+    def calc_coeffs(self, l):
+        coeff = np.std(l)/np.mean(l)
+        return coeff
+
     def reset(self):
         self.cluster.reset()
         self.loads.reset()
@@ -224,7 +228,10 @@ class HPCEnv(gym.Env):
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
 
-        return self.build_observation()
+        if (self.calc_coeffs(self.scheduled_scores) > 2.0):
+            return self.build_observation()
+        else:
+            return self.reset()
 
     def reset_for_test(self, num):
         self.cluster.reset()
