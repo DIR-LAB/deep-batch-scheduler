@@ -228,7 +228,9 @@ class HPCEnv(gym.Env):
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
 
-        if (self.calc_coeffs(self.scheduled_scores) > 2.0):
+        # print(self.calc_coeffs(self.scheduled_scores))
+        
+        if (self.calc_coeffs(self.scheduled_scores) > 0.1):
             return self.build_observation()
         else:
             return self.reset()
