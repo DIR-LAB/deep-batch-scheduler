@@ -70,14 +70,17 @@ def run_policy(env, get_probs, get_value, nums, iters):
             action_probs = get_probs(o)
             # v_t = get_value(o)
 
+            count = 0
             lst = []
             legal_job_idx = []
             for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
                 if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
                     lst.append(0)
                 elif o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
+                    count += 1
                     lst.append(0)
                 else:
+                    count += 1
                     lst.append(action_probs[int(i/JOB_FEATURES)])
                     legal_job_idx.append(int(i/JOB_FEATURES))
 
@@ -91,7 +94,7 @@ def run_policy(env, get_probs, get_value, nums, iters):
 
             # a = np.argmax(legal_action_probs)
             a = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=legal_action_probs)
-            print (a, end=" ")
+            print (str(a)+"("+str(count)+")", end="|")
             o, r, d, _ = env.step_for_test(a)
             rl += r
             if d:

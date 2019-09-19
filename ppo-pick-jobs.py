@@ -16,16 +16,17 @@ def mlp(x, act_dim):
     return tf.layers.dense(x, units=act_dim, activation=tf.tanh)
 
 def dnn(x_ph, act_dim):
-    x = tf.reshape(x_ph, shape=[-1, 4, 4, JOB_FEATURES])
+    m = int(np.sqrt(MAX_QUEUE_SIZE))
+    x = tf.reshape(x_ph, shape=[-1, m, m, JOB_FEATURES])
     x = tf.layers.conv2d(
             inputs=x,
             filters=32,
             kernel_size=[1, 1],
             strides=1,
             activation=tf.nn.relu
-    ) # 4 * 4
-    x = tf.reshape(x, [-1, 4 * 4 * 32])
-    for _ in range(2):
+    )
+    x = tf.reshape(x, [-1, m * m * 32])
+    for _ in range(3):
         x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
 
     return tf.layers.dense(

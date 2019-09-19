@@ -93,7 +93,7 @@ class HPCEnv(gym.Env):
         self.pivot_job = False
         self.scheduled_scores = []
 
-        self.enable_preworkloads = True
+        self.enable_preworkloads = False
         self.pre_workloads = []
 
     def my_init(self, workload_file = '', sched_file = ''):
@@ -220,16 +220,19 @@ class HPCEnv(gym.Env):
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
+        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
 
-        #print(np.mean(self.scheduled_scores))
+        return self.build_observation()
         
+        #print(np.mean(self.scheduled_scores))
+        '''
         if (np.mean(self.scheduled_scores) > 5):
             return self.build_observation()
         else:
             return self.reset()
+        '''
 
     def reset_for_test(self, num):
         self.cluster.reset()
@@ -358,7 +361,7 @@ class HPCEnv(gym.Env):
 
     def build_observation(self):
         vector = np.zeros((MAX_QUEUE_SIZE) * JOB_FEATURES, dtype=float)
-        self.job_queue.sort(key=lambda job: self.sjf_score(job))
+        self.job_queue.sort(key=lambda job: self.fcfs_score(job))
         self.visible_jobs = []
         for i in range(0, MAX_QUEUE_SIZE):
             if i < len(self.job_queue):
@@ -369,8 +372,9 @@ class HPCEnv(gym.Env):
         # random.shuffle(self.visible_jobs)
 
         self.pairs = []
-        for i in range(0, MAX_QUEUE_SIZE - 1): # always keep the last job as "skip"
-            if i < len(self.visible_jobs):
+        add_skip = False
+        for i in range(0, MAX_QUEUE_SIZE):
+            if i < len(self.visible_jobs) and i < (MAX_QUEUE_SIZE - 1):
                 job = self.visible_jobs[i]
                 submit_time = job.submit_time
                 request_processors = job.request_number_of_processors
@@ -387,13 +391,14 @@ class HPCEnv(gym.Env):
                 else:
                     can_schedule_now = 1e-5
                 self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now])        
+            elif not add_skip:  # the next job is skip
+                add_skip = True
+                if self.pivot_job:
+                    self.pairs.append([None, 1, 1, 1, 1])
+                else:
+                    self.pairs.append([None, 1, 1, 1, 0])
             else:
                 self.pairs.append([None,0,1,1,0])
-
-        if self.pivot_job:
-            self.pairs.append([None, 1, 1, 1, 1])
-        else:
-            self.pairs.append([None, 1, 1, 1, 0])
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
@@ -484,6 +489,9 @@ class HPCEnv(gym.Env):
                 self.running_jobs.pop(0)  # remove the first running job.
 
     def job_score(self, job_for_scheduling):
+        # wait time
+        # _tmp = float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time)
+        # bsld
         _tmp = max(1.0, (float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
                         /
                         max(job_for_scheduling.run_time, 10)))
@@ -553,11 +561,13 @@ class HPCEnv(gym.Env):
         return self.pairs[action][0]
         
     def step(self, a):
-        if a < MAX_QUEUE_SIZE - 1:
-            job_for_scheduling = self.pairs[a][0]
-            done = self.schedule(job_for_scheduling)
+        job_for_scheduling = self.pairs[a][0]
+
+        if not job_for_scheduling:
+            done, _ = self.skip_schedule()
         else:
-            done, p = self.skip_schedule()
+            job_for_scheduling = self.pairs[a][0]
+            done = self.schedule(job_for_scheduling)            
 
         if not done:
             obs = self.build_observation()
@@ -567,19 +577,23 @@ class HPCEnv(gym.Env):
             best_total = min(self.scheduled_scores)
             rwd = (best_total - rl_total)
             '''
-            if (best_total) <= rl_total:
+            if (best_total) < rl_total:
                 rwd = -1
+            elif best_total == rl_total:
+                rwd = 0
             else:
                 rwd = 1    
             '''
             return [None, rwd, True, None]
     
     def step_for_test(self, a):
-        if a < MAX_QUEUE_SIZE - 1:
+        job_for_scheduling = self.pairs[a][0]
+
+        if not job_for_scheduling:
+            done, _ = self.skip_schedule()
+        else:
             job_for_scheduling = self.pairs[a][0]
             done = self.schedule(job_for_scheduling)
-        else:
-            done, p = self.skip_schedule()
 
         if not done:
             obs = self.build_observation()
