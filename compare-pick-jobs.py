@@ -94,7 +94,7 @@ def run_policy(env, get_probs, get_value, nums, iters):
 
             # a = np.argmax(legal_action_probs)
             a = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=legal_action_probs)
-            print (str(a)+"("+str(count)+")", end="|")
+            print (str(a)+"["+str(count)+"]", end=" | ")
             o, r, d, _ = env.step_for_test(a)
             rl += r
             if d:
@@ -131,7 +131,7 @@ def run_policy(env, get_probs, get_value, nums, iters):
     plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange')
     plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange')
 
-    plt.boxplot(all_data, showfliers=False)
+    plt.boxplot(all_data, showfliers=False, meanline=True, showmeans=True)
 
     axes.yaxis.grid(True)
     axes.set_xticks([y + 1 for y in range(len(all_data))])

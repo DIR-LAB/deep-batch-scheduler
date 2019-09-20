@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 48
+JOB_SEQUENCE_SIZE = 128
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -590,6 +590,7 @@ class HPCEnv(gym.Env):
         job_for_scheduling = self.pairs[a][0]
 
         if not job_for_scheduling:
+            print("SKIP", end=" ")
             done, _ = self.skip_schedule()
         else:
             job_for_scheduling = self.pairs[a][0]
