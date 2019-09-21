@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 48
+JOB_SEQUENCE_SIZE = 128
 
 def combined_shape(length, shape=None):
     if shape is None:
