@@ -38,22 +38,26 @@ def dnn(x_ph, act_dim):
 """
 Policies
 """
-def categorical_policy(x, a, action_space):
+def categorical_policy(x, a, mask, action_space):
     act_dim = action_space.n
     output_layer = dnn(x, act_dim)
-    action_probs = tf.squeeze(tf.nn.softmax(output_layer))    
-    log_picked_action_prob = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * tf.nn.log_softmax(output_layer), axis=1)
-    return action_probs, log_picked_action_prob
+    output_layer = output_layer+(mask-1)*1000000
+    logp_all = tf.nn.log_softmax(output_layer)
+
+    pi = tf.squeeze(tf.multinomial(output_layer, 1), axis=1)
+    logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
+    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
+    return pi, logp, logp_pi, output_layer
 
 """
 Actor-Critics
 """
-def actor_critic(x, a, action_space=None):
+def actor_critic(x, a, mask, action_space=None):
     with tf.variable_scope('pi'):
-        action_probs, log_picked_action_prob = categorical_policy(x, a, action_space)
+        pi, logp, logp_pi , out= categorical_policy(x, a, mask, action_space)
     with tf.variable_scope('v'):
         v = tf.squeeze(dnn(x, 1), axis=1)
-    return action_probs, log_picked_action_prob, v
+    return pi, logp, logp_pi, v, out
 
 class PPOBuffer:
     """
@@ -66,6 +70,7 @@ class PPOBuffer:
         size = size * 100 # assume the traj can be really long
         self.obs_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
         self.act_buf = np.zeros(combined_shape(size, act_dim), dtype=np.float32)
+        self.mask_buf = np.zeros(combined_shape(size, MAX_QUEUE_SIZE), dtype=np.float32)
         self.adv_buf = np.zeros(size, dtype=np.float32)
         self.rew_buf = np.zeros(size, dtype=np.float32)
         self.ret_buf = np.zeros(size, dtype=np.float32)
@@ -74,13 +79,14 @@ class PPOBuffer:
         self.gamma, self.lam = gamma, lam
         self.ptr, self.path_start_idx, self.max_size = 0, 0, size
 
-    def store(self, obs, act, rew, val, logp):
+    def store(self, obs, act, mask, rew, val, logp):
         """
         Append one timestep of agent-environment interaction to the buffer.
         """
         assert self.ptr < self.max_size     # buffer has to have room so you can store
         self.obs_buf[self.ptr] = obs
         self.act_buf[self.ptr] = act
+        self.mask_buf[self.ptr] = mask
         self.rew_buf[self.ptr] = rew
         self.val_buf[self.ptr] = val
         self.logp_buf[self.ptr] = logp
@@ -137,7 +143,7 @@ class PPOBuffer:
         actual_adv_buf = (actual_adv_buf - adv_mean) / adv_std
         # print (actual_adv_buf)
 
-        return [self.obs_buf[:actual_size], self.act_buf[:actual_size], actual_adv_buf,
+        return [self.obs_buf[:actual_size], self.act_buf[:actual_size], self.mask_buf[:actual_size], actual_adv_buf,
                 self.ret_buf[:actual_size], self.logp_buf[:actual_size]]
 
 """
@@ -170,16 +176,17 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
 
     # Inputs to computation graph
     x_ph, a_ph = placeholders_from_spaces(env.observation_space, env.action_space)
+    mask_ph = placeholder(MAX_QUEUE_SIZE)
     adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
 
     # Main outputs from computation graph
-    action_probs, log_picked_action_prob, v = actor_critic(x_ph, a_ph, **ac_kwargs)
+    pi, logp, logp_pi, v, out = actor_critic(x_ph, a_ph, mask_ph, **ac_kwargs)
 
     # Need all placeholders in *this* order later (to zip with data from buffer)
-    all_phs = [x_ph, a_ph, adv_ph, ret_ph, logp_old_ph]
+    all_phs = [x_ph, a_ph, mask_ph, adv_ph, ret_ph, logp_old_ph]
 
     # Every step, get: action, value, and logprob
-    get_action_ops = [action_probs, v]
+    get_action_ops = [pi, v, logp_pi, out]
 
     # Experience buffer
     buf = PPOBuffer(obs_dim, act_dim, traj_per_epoch * JOB_SEQUENCE_SIZE, gamma, lam)
@@ -189,14 +196,14 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n'%var_counts)
 
     # PPO objectives
-    ratio = tf.exp(log_picked_action_prob - logp_old_ph)          # pi(a|s) / pi_old(a|s)
+    ratio = tf.exp(logp - logp_old_ph)          # pi(a|s) / pi_old(a|s)
     min_adv = tf.where(adv_ph>0, (1+clip_ratio)*adv_ph, (1-clip_ratio)*adv_ph)
     pi_loss = -tf.reduce_mean(tf.minimum(ratio * adv_ph, min_adv))
     v_loss = tf.reduce_mean((ret_ph - v)**2)
 
     # Info (useful to watch during learning)
-    approx_kl = tf.reduce_mean(logp_old_ph - log_picked_action_prob)      # a sample estimate for KL-divergence, easy to compute
-    approx_ent = tf.reduce_mean(-log_picked_action_prob)                  # a sample estimate for entropy, also easy to compute
+    approx_kl = tf.reduce_mean(logp_old_ph - logp)      # a sample estimate for KL-divergence, easy to compute
+    approx_ent = tf.reduce_mean(-logp)                  # a sample estimate for entropy, also easy to compute
     clipped = tf.logical_or(ratio > (1+clip_ratio), ratio < (1-clip_ratio))
     clipfrac = tf.reduce_mean(tf.cast(clipped, tf.float32))
 
@@ -209,7 +216,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
 
     # Setup model saving
     # logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'action_probs': action_probs, 'log_picked_action_prob': log_picked_action_prob, 'v': v})
-    logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a':a_ph, 'adv':adv_ph, 'ret':ret_ph, 'logp_old_ph':logp_old_ph}, outputs={'action_probs': action_probs, 'log_picked_action_prob': log_picked_action_prob, 'v': v, 'pi_loss':pi_loss, 'v_loss':v_loss, 'approx_ent':approx_ent, 'approx_kl':approx_kl, 'clipped':clipped, 'clipfrac':clipfrac})
+    logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a':a_ph, 'adv':adv_ph, 'mask':mask_ph, 'ret':ret_ph, 'logp_old_ph':logp_old_ph}, outputs={'pi': pi, 'v': v, 'pi_loss':pi_loss, 'v_loss':v_loss, 'approx_ent':approx_ent, 'approx_kl':approx_kl, 'clipped':clipped, 'clipfrac':clipfrac})
 
     def update():
         inputs = {k:v for k,v in zip(all_phs, buf.get())}
@@ -240,39 +247,29 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     for epoch in range(epochs):
         t = 0
         while True:
-            action_probs, v_t = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1)})
-                        
             lst = []
-            legal_job_idx = []
             for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
                 if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
                     lst.append(0)
                 elif o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
                     lst.append(0)
                 else:
-                    lst.append(action_probs[int(i/JOB_FEATURES)])
-                    legal_job_idx.append(int(i/JOB_FEATURES))
+                    lst.append(1)
 
-            legal_action_probs = np.array(lst)
-            total = legal_action_probs.sum()
-            legal_action_probs /= total
+            a, v_t, logp_t, output = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1), mask_ph: np.array(lst).reshape(1,-1)})
 
-            if np.isnan(legal_action_probs).any():
-                print("nan:---------->observation:\n", o, "\nlegal_action_probs", legal_action_probs, "\naction_probs", action_probs)
-                return
-            
-            action = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=legal_action_probs)
-            log_action_prob = np.log(legal_action_probs[action])
+
+
             '''
             action = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=action_probs)
             log_action_prob = np.log(action_probs[action])
             '''
 
             # save and log
-            buf.store(o, np.array(action), r, v_t, log_action_prob)
+            buf.store(o, a, np.array(lst), r, v_t, logp_t)
             logger.store(VVals=v_t)
 
-            o, r, d, _ = env.step(action)
+            o, r, d, _ = env.step(a[0])
             ep_ret += r
             ep_len += 1
 
