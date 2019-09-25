@@ -85,18 +85,11 @@ def run_policy(env, get_probs, get_value, nums, iters):
 
 
 
-<<<<<<< HEAD
             if a[0] in skip_:
                 print("SKIP" + "(" + str(count) + ")", end="|")
             else:
                 print (str(a[0])+"("+str(count)+")", end="|")
             o, r, d, _ = env.step_for_test(a[0])
-=======
-            # a = np.argmax(legal_action_probs)
-            a = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=legal_action_probs)
-            print (str(a)+"["+str(count)+"]", end=" | ")
-            o, r, d, _ = env.step_for_test(a)
->>>>>>> e6850a88d3f591b642bff5d60301d662cd4885f5
             rl += r
             if d:
                 break
