@@ -278,9 +278,11 @@ class HPCEnv(gym.Env):
                 break
 
         while not self.cluster.can_allocated(job):
+
             # try to backfill as many jobs as possible. Use FCFS
             self.job_queue.sort(key=lambda _j: self.fcfs_score(_j))
-            for _j in self.job_queue:
+            job_queue_iter_copy = list(self.job_queue)
+            for _j in job_queue_iter_copy:
                 if self.cluster.can_allocated(_j) and (self.current_timestamp + _j.request_time) < earliest_start_time:
                     # we should be OK to schedule the job now
                     assert _j.scheduled_time == -1  # this job should never be scheduled before.
@@ -290,16 +292,6 @@ class HPCEnv(gym.Env):
                     score = (self.job_score(_j) / self.num_job_in_batch)  # calculated reward
                     scheduled_logs[_j.job_id] = score
                     self.job_queue.remove(_j)  # remove the job from job queue
-
-                    # after scheduling, check if job queue is empty, try to add jobs. 
-                    not_empty = self.moveforward_for_job()
-
-                    if not_empty:
-                        # job_queue is not empty
-                        return False
-                    else:
-                        # job_queue is empty and can not add new jobs as we reach the end of the sequence
-                        return True
 
             # move to the next timestamp
             assert self.running_jobs
@@ -494,9 +486,17 @@ class HPCEnv(gym.Env):
         while not self.cluster.can_allocated(job):
             # try to backfill as many jobs as possible. Use FCFS
             self.job_queue.sort(key=lambda _j: self.fcfs_score(_j))
-            for _j in self.job_queue:
+            job_queue_iter_copy = list(self.job_queue)
+            for _j in job_queue_iter_copy:
                 if self.cluster.can_allocated(_j) and (self.current_timestamp + _j.request_time) < earliest_start_time:
-                    self.schedule(_j)
+                    # we should be OK to schedule the job now
+                    assert _j.scheduled_time == -1  # this job should never be scheduled before.
+                    _j.scheduled_time = self.current_timestamp
+                    _j.allocated_machines = self.cluster.allocate(_j.job_id, _j.request_number_of_processors)
+                    self.running_jobs.append(_j)
+                    score = (self.job_score(_j) / self.num_job_in_batch)  # calculated reward
+                    self.scheduled_rl[_j.job_id] = score
+                    self.job_queue.remove(_j)  # remove the job from job queue
 
             # move to the next timestamp
             assert self.running_jobs
