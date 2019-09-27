@@ -328,19 +328,19 @@ class HPCEnv(gym.Env):
             if not self.cluster.can_allocated(job_for_scheduling):
                 self.moveforward_for_resources_backfill_greedy(job_for_scheduling, scheduled_logs)
                 # self.skip_for_resources()
-            else:
-                assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-                job_for_scheduling.scheduled_time = self.current_timestamp
-                job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
-                                                                            job_for_scheduling.request_number_of_processors)
-                self.running_jobs.append(job_for_scheduling)
-                score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
-                scheduled_logs[job_for_scheduling.job_id] = score
-                self.job_queue.remove(job_for_scheduling)
+            
+            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+            job_for_scheduling.scheduled_time = self.current_timestamp
+            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
+                                                                        job_for_scheduling.request_number_of_processors)
+            self.running_jobs.append(job_for_scheduling)
+            score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
+            scheduled_logs[job_for_scheduling.job_id] = score
+            self.job_queue.remove(job_for_scheduling)
 
-                not_empty = self.moveforward_for_job()
-                if not not_empty:
-                    break
+            not_empty = self.moveforward_for_job()
+            if not not_empty:
+                break
 
         # reset again
         self.cluster.reset()
@@ -536,25 +536,25 @@ class HPCEnv(gym.Env):
         if not self.cluster.can_allocated(job_for_scheduling):
             self.moveforward_for_resources_backfill(job_for_scheduling)
             # self.skip_for_resources()
+        
+        # we should be OK to schedule the job now
+        assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
+        job_for_scheduling.scheduled_time = self.current_timestamp
+        job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id, job_for_scheduling.request_number_of_processors)
+        self.running_jobs.append(job_for_scheduling)
+        score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
+        self.scheduled_rl[job_for_scheduling.job_id] = score
+        self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
+
+        # after scheduling, check if job queue is empty, try to add jobs. 
+        not_empty = self.moveforward_for_job()
+
+        if not_empty:
+            # job_queue is not empty
+            return False
         else:
-            # we should be OK to schedule the job now
-            assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
-            job_for_scheduling.scheduled_time = self.current_timestamp
-            job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id, job_for_scheduling.request_number_of_processors)
-            self.running_jobs.append(job_for_scheduling)
-            score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
-            self.scheduled_rl[job_for_scheduling.job_id] = score
-            self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
-
-            # after scheduling, check if job queue is empty, try to add jobs. 
-            not_empty = self.moveforward_for_job()
-
-            if not_empty:
-                # job_queue is not empty
-                return False
-            else:
-                # job_queue is empty and can not add new jobs as we reach the end of the sequence
-                return True
+            # job_queue is empty and can not add new jobs as we reach the end of the sequence
+            return True
 
     def valid(self, a):
         action = a[0]
