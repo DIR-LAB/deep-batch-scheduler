@@ -371,6 +371,67 @@ class HPCEnv(gym.Env):
         self.visible_jobs.sort(key=lambda j: self.fcfs_score(j))
         # random.shuffle(self.visible_jobs)
 
+        '''
+        @ddai: optimize the observable jobs
+        self.visible_jobs = []
+        if len(self.job_queue) <= MAX_QUEUE_SIZE:
+            for i in range(0, len(self.job_queue)):
+                self.visible_jobs.append(self.job_queue[i])
+        else:
+            visible_f1 = []
+            f1_index = 0
+            self.job_queue.sort(key=lambda job: self.f1_score(job))
+            for i in range(0, MAX_QUEUE_SIZE):
+                visible_f1.append(self.job_queue[i])
+            
+            visible_f2 = []
+            f2_index = 0
+            self.job_queue.sort(key=lambda job: self.f2_score(job))
+            for i in range(0, MAX_QUEUE_SIZE):
+                visible_f2.append(self.job_queue[i])
+            
+            visible_sjf = []
+            sjf_index = 0
+            self.job_queue.sort(key=lambda job: self.sjf_score(job))
+            for i in range(0, MAX_QUEUE_SIZE):
+                visible_sjf.append(self.job_queue[i])
+
+            index = 0
+            while index < MAX_QUEUE_SIZE:
+                f1_job = visible_f1[f1_index]
+                f1_index += 1
+                f2_job = visible_f2[f2_index]
+                f2_index += 1
+                sjf_job = visible_sjf[sjf_index]
+                sjf_index += 1
+
+                if (not f1_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
+                    self.visible_jobs.append(f1_job)
+                    index += 1
+                if (not f2_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
+                    self.visible_jobs.append(f2_job)
+                    index += 1
+                if (not sjf_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
+                    self.visible_jobs.append(sjf_job)
+                    index += 1
+        '''
+
+        '''
+        @ddai: OPTIMIZE_OBSV. This time, we calculate the earliest start time of each job and expose that to the RL agent.
+        if it is 0, then the job can start now, if it is near 1, that means it will have to wait for a really long time to start.
+        The earliest start time is calculated based on current resources and the running jobs. It assumes no more jobs will be scheduled.
+
+        # calculate the free resources at each outstanding ts
+        free_processors_pair = []
+        free_processors = (self.cluster.free_node * self.cluster.num_procs_per_node)
+        free_processors_pair.append((free_processors, 0))
+
+        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+        for rj in self.running_jobs:
+            free_processors += rj.request_number_of_processors
+            free_processors_pair.append((free_processors, (rj.scheduled_time + rj.run_time - self.current_timestamp)))
+        '''
+
         self.pairs = []
         add_skip = False
         for i in range(0, MAX_QUEUE_SIZE):
@@ -386,6 +447,17 @@ class HPCEnv(gym.Env):
                 normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1.0 - 1e-5)
                 normalized_run_time = min(float(request_time) / float(self.loads.max_exec_time), 1.0 - 1e-5)
                 normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs),  1.0 - 1e-5)
+
+                '''
+                @ddai: part 2 of OPTIMIZE_OBSV
+                earliest_start_time = 1
+                for fp, ts in free_processors_pair:
+                    if request_processors < fp:
+                        earliest_start_time = ts
+                        break
+                normalized_earliest_start_time = min(float(earliest_start_time) / float(MAX_WAIT_TIME), 1.0 - 1e-5)
+                '''
+
                 if self.cluster.can_allocated(job):
                     can_schedule_now = 1.0 - 1e-5
                 else:
