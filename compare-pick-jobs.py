@@ -20,6 +20,7 @@ from HPCSimPickJobs import *
 
 import matplotlib.pyplot as plt
 plt.rcdefaults()
+tf.enable_eager_execution()
 
 def load_policy(model_path, itr='last'):
     # handle which epoch to load from
@@ -36,13 +37,26 @@ def load_policy(model_path, itr='last'):
     # get the correct op for executing actions
     pi = model['pi']
     v = model['v']
-
+    out = model['out']
+    get_out = lambda x ,y  : sess.run(out, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES), model['mask']:y.reshape(-1, MAX_QUEUE_SIZE)})
     # make function for producing an action given a single state
     get_probs = lambda x ,y  : sess.run(pi, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES), model['mask']:y.reshape(-1, MAX_QUEUE_SIZE)})
     get_v = lambda x : sess.run(v, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES)})
-    return get_probs, get_v
+    return get_probs, get_out
 
-def run_policy(env, get_probs, get_value, nums, iters):
+def action_from_obs(o):
+    lst = []
+    for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
+        if o[i] == 0 and o[i + 1] == 1 and o[i + 2] == 1 and o[i + 3] == 0:
+            pass
+        elif o[i] == 1 and o[i + 1] == 1 and o[i + 2] == 1 and o[i + 3] == 1:
+            pass
+        else:
+            lst.append((o[i+1],math.floor(i/JOB_FEATURES)))
+    min_time = min([i[0] for i in lst])
+    result = [i[1] for i in lst if i[0]==min_time]
+    return result[0]
+def run_policy(env, get_probs, get_out, nums, iters):
     rl_r = []
     f1_r = [] 
     f2_r = []
@@ -66,6 +80,8 @@ def run_policy(env, get_probs, get_value, nums, iters):
         o = env.build_observation()
         print ("schedule: ", end="")
         rl = 0
+        total_decisions = 0
+        rl_decisions = 0
         while True:
             count = 0
             skip_ = []
@@ -80,18 +96,30 @@ def run_policy(env, get_probs, get_value, nums, iters):
                     if o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
                         skip_.append(math.floor(i/JOB_FEATURES))
                     lst.append(1)
-            a = get_probs(o, np.array(lst))
+            out = get_out(o,np.array(lst))
+            softmax_out = tf.nn.softmax(out)
+            confidence = tf.reduce_max(softmax_out)
+            total_decisions += 1.0
+            if confidence > 0.8:
+                pi = get_probs(o, np.array(lst))
+                a = pi[0]
+                rl_decisions += 1.0
+            else:
+                # print('SJF')
+                a = action_from_obs(o)
+            # print(out)
             # v_t = get_value(o)
 
 
 
-            if a[0] in skip_:
+            if a in skip_:
                 print("SKIP" + "(" + str(count) + ")", end="|")
             else:
-                print (str(a[0])+"("+str(count)+")", end="|")
-            o, r, d, _ = env.step_for_test(a[0])
+                print (str(a)+"("+str(count)+")", end="|")
+            o, r, d, _ = env.step_for_test(a)
             rl += r
             if d:
+                print("RL decision ratio:",rl_decisions/total_decisions)
                 break
         rl_r.append(rl)
         print ("")
@@ -142,10 +170,10 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--rlmodel', type=str, default="/home/dzhang16/zhangdi/projects/f1_skip/ppo_job_newmask/ppo_job_newmask_s0/")
-    parser.add_argument('--workload', type=str, default='/home/dzhang16/zhangdi/projects/deep-batch-scheduler/data/lublin_256.swf')
-    parser.add_argument('--len', '-l', type=int, default=128)
+    parser.add_argument('--workload', type=str, default='/home/dzhang16/zhangdi/projects/deep-batch-scheduler/data/SDSC-BLUE-2000-4.2-cln.swf')
+    parser.add_argument('--len', '-l', type=int, default=1024)
     parser.add_argument('--seed', '-s', type=int, default=1)
-    parser.add_argument('--iter', '-i', type=int, default=100)
+    parser.add_argument('--iter', '-i', type=int, default=20)
     args = parser.parse_args()
 
     current_dir = os.getcwd()
@@ -157,6 +185,6 @@ if __name__ == '__main__':
     # initialize the environment from scratch
     env = HPCEnv()
     env.my_init(workload_file=workload_file)
-    env.seed(int(time.time()))
+    env.seed(args.seed)
 
     run_policy(env, get_probs, get_value, args.len, args.iter)
