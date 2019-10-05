@@ -1,6 +1,5 @@
 import re
 import sys
-import math
 
 
 class Job:

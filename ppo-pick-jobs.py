@@ -1,12 +1,6 @@
-import numpy as np
 import tensorflow as tf
-import gym
-import os
-import sys
-import time
 from spinup.utils.logx import EpochLogger
-from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
-from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
+from spinup.utils.mpi_tools import mpi_fork, mpi_avg
 
 from HPCSimPickJobs import *
 

@@ -1,22 +1,17 @@
-from job import Job, Workloads
-from cluster import Cluster
-
 import os
-import math
-import json
-import time
-import sys
 import random
-from random import shuffle
-
-import numpy as np
-import tensorflow as tf
-import scipy.signal
+import sys
 
 import gym
+import numpy as np
+import scipy.signal
+import tensorflow as tf
 from gym import spaces
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
+
+from cluster import Cluster
+from job import Job, Workloads
 
 MAX_QUEUE_SIZE = 16
 MLP_SIZE = 256

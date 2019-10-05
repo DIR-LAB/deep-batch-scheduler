@@ -1,18 +1,6 @@
-import numpy as np
-import tensorflow as tf
-import scipy.signal
-import os
-import math
-import json
-import time
-import sys
-import random
-from random import shuffle
+from spinup.utils.logx import EpochLogger
 
 from HPCSimPickJobs import *
-
-from spinup.utils.logx import EpochLogger
-from spinup.utils.logx import restore_tf_graph
 
 np.set_printoptions(threshold=np.inf)
 
