@@ -18,7 +18,7 @@ from gym import spaces
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
 
-MAX_QUEUE_SIZE = 16
+MAX_QUEUE_SIZE = 128
 MLP_SIZE = 256
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 4
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 128
+JOB_SEQUENCE_SIZE = 512
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -150,6 +150,21 @@ class HPCEnv(gym.Env):
         # if request_time is the same, pick whichever submitted earlier 
         return (request_processors, submit_time)
 
+    def wfp_score(self, job):
+        submit_time = job.submit_time
+        request_processors = job.request_number_of_processors
+        request_time = job.request_time
+        waiting_time = job.scheduled_time-job.submit_time
+        return -np.power(float(waiting_time)/request_time, 3)*request_processors
+
+    def uni_score(self,job):
+        submit_time = job.submit_time
+        request_processors = job.request_number_of_processors
+        request_time = job.request_time
+        waiting_time = job.scheduled_time-job.submit_time
+
+        return -(waiting_time+1e-15)/(np.log2(request_processors+1e-15)*request_time)
+
     def fcfs_score(self, job):
         submit_time = job.submit_time
         return submit_time
@@ -235,7 +250,7 @@ class HPCEnv(gym.Env):
             return self.reset()
         '''
 
-    def reset_for_test(self, num):
+    def reset_for_test(self, num,start):
         self.cluster.reset()
         self.loads.reset()
 
@@ -257,6 +272,7 @@ class HPCEnv(gym.Env):
         job_sequence_size = num
 
         self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
+        #self.start = start
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
@@ -386,8 +402,8 @@ class HPCEnv(gym.Env):
         self.visible_jobs.sort(key=lambda j: self.fcfs_score(j))
         # random.shuffle(self.visible_jobs)
 
-        '''
-        @ddai: optimize the observable jobs
+
+        #@ddai: optimize the observable jobs
         self.visible_jobs = []
         if len(self.job_queue) <= MAX_QUEUE_SIZE:
             for i in range(0, len(self.job_queue)):
@@ -411,7 +427,21 @@ class HPCEnv(gym.Env):
             for i in range(0, MAX_QUEUE_SIZE):
                 visible_sjf.append(self.job_queue[i])
 
+            visible_small = []
+            small_index = 0
+            self.job_queue.sort(key=lambda job: self.smallest_score(job))
+            for i in range(0, MAX_QUEUE_SIZE):
+                visible_small.append(self.job_queue[i])
+
+            visible_random = []
+            random_index = 0
+            shuffled = list(self.job_queue)
+            shuffle(shuffled)
+            for i in range(0, MAX_QUEUE_SIZE):
+                visible_random.append(shuffled[i])
+
             index = 0
+
             while index < MAX_QUEUE_SIZE:
                 f1_job = visible_f1[f1_index]
                 f1_index += 1
@@ -419,17 +449,26 @@ class HPCEnv(gym.Env):
                 f2_index += 1
                 sjf_job = visible_sjf[sjf_index]
                 sjf_index += 1
-
-                if (not f1_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
-                    self.visible_jobs.append(f1_job)
-                    index += 1
-                if (not f2_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
-                    self.visible_jobs.append(f2_job)
-                    index += 1
+                small_job = visible_small[small_index]
+                small_index += 1
+                random_job = visible_sjf[random_index]
+                random_index += 1
+                #if (not f1_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
+                #    self.visible_jobs.append(f1_job)
+                #    index += 1
+                #if (not f2_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
+                #    self.visible_jobs.append(f2_job)
+                #    index += 1
                 if (not sjf_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
                     self.visible_jobs.append(sjf_job)
                     index += 1
-        '''
+                if (not small_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
+                    self.visible_jobs.append(small_job)
+                    index += 1
+                if (not random_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
+                    self.visible_jobs.append(random_job)
+                    index += 1
+
 
         '''
         @ddai: OPTIMIZE_OBSV. This time, we calculate the earliest start time of each job and expose that to the RL agent.

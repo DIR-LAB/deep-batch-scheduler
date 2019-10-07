@@ -60,21 +60,23 @@ def run_policy(env, get_probs, get_out, nums, iters):
     rl_r = []
     f1_r = [] 
     f2_r = []
-    f3_r = []
-    f4_r = []
     sjf_r = []
-    small_r = []
+    #small_r = []
+    wfp_r = []
+    uni_r = []
+
     fcfs_r = []
 
-    for _ in range(0, iters):
-        env.reset_for_test(nums)
+    for iter_num in range(0, iters):
+        start = iter_num *args.len
+        env.reset_for_test(nums,start)
         f1_r.append(sum(env.schedule_curr_sequence_reset(env.f1_score).values()))
         f2_r.append(sum(env.schedule_curr_sequence_reset(env.f2_score).values()))
-        f3_r.append(sum(env.schedule_curr_sequence_reset(env.f3_score).values()))
-        f4_r.append(sum(env.schedule_curr_sequence_reset(env.f4_score).values()))
+        uni_r.append(sum(env.schedule_curr_sequence_reset(env.uni_score).values()))
+        wfp_r.append(sum(env.schedule_curr_sequence_reset(env.wfp_score).values()))
         
         sjf_r.append(sum(env.schedule_curr_sequence_reset(env.sjf_score).values()))
-        small_r.append(sum(env.schedule_curr_sequence_reset(env.smallest_score).values()))
+        #small_r.append(sum(env.schedule_curr_sequence_reset(env.smallest_score).values()))
         fcfs_r.append(sum(env.schedule_curr_sequence_reset(env.fcfs_score).values()))
 
         o = env.build_observation()
@@ -100,7 +102,7 @@ def run_policy(env, get_probs, get_out, nums, iters):
             softmax_out = tf.nn.softmax(out)
             confidence = tf.reduce_max(softmax_out)
             total_decisions += 1.0
-            if confidence > 0.8:
+            if confidence > 0:
                 pi = get_probs(o, np.array(lst))
                 a = pi[0]
                 rl_decisions += 1.0
@@ -126,15 +128,14 @@ def run_policy(env, get_probs, get_out, nums, iters):
 
     # plot
     all_data = []
-    all_data.append(rl_r)
+    all_data.append(fcfs_r)
+    all_data.append(wfp_r)
+    all_data.append(uni_r)
     all_data.append(sjf_r)
-    all_data.append(small_r)
+    all_data.append(rl_r)
     #all_data.append(fcfs_r)
     
     all_data.append(f1_r)
-    all_data.append(f2_r)
-    all_data.append(f3_r)
-    all_data.append(f4_r)
 
     all_medians = []
     for p in all_data:
@@ -151,13 +152,13 @@ def run_policy(env, get_probs, get_out, nums, iters):
     plt.plot(xticks[3:4], all_data[3:4], 'o', color='darkorange')
     plt.plot(xticks[4:5], all_data[4:5], 'o', color='darkorange')
     plt.plot(xticks[5:6], all_data[5:6], 'o', color='darkorange')
-    plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange')
+    #plt.plot(xticks[6:7], all_data[6:7], 'o', color='darkorange')
 
     plt.boxplot(all_data, showfliers=False, meanline=True, showmeans=True)
 
     axes.yaxis.grid(True)
     axes.set_xticks([y + 1 for y in range(len(all_data))])
-    xticklabels = ['RL', 'SJF', 'SMALL', 'F1', 'F2', 'F3', 'F4']
+    xticklabels = ['FCFS', 'WFP', 'UNI', 'SJF', 'RL', 'F1']
     plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
              xticklabels=xticklabels)
 
@@ -170,10 +171,10 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--rlmodel', type=str, default="/home/dzhang16/zhangdi/projects/f1_skip/ppo_job_newmask/ppo_job_newmask_s0/")
-    parser.add_argument('--workload', type=str, default='/home/dzhang16/zhangdi/projects/deep-batch-scheduler/data/SDSC-BLUE-2000-4.2-cln.swf')
-    parser.add_argument('--len', '-l', type=int, default=1024)
+    parser.add_argument('--workload', type=str, default='/home/dzhang16/zhangdi/projects/deep-batch-scheduler/data/CTC-SP2-1996-3.1-cln.swf')
+    parser.add_argument('--len', '-l', type=int, default=512)
     parser.add_argument('--seed', '-s', type=int, default=1)
-    parser.add_argument('--iter', '-i', type=int, default=20)
+    parser.add_argument('--iter', '-i', type=int, default=10)
     args = parser.parse_args()
 
     current_dir = os.getcwd()

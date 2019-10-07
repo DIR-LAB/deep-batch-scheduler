@@ -30,7 +30,17 @@ def load_policy(model_path, itr='last'):
     get_probs = lambda x ,y  : sess.run(pi, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES), model['mask']:y.reshape(-1, MAX_QUEUE_SIZE)})
     get_v = lambda x : sess.run(v, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES)})
     return get_probs, get_v
+def mlp3(x, act_dim):
+    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, 4])
+    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
+    x = tf.squeeze(tf.layers.dense(x, units=1), axis=-1)
+    x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
 
+    return tf.layers.dense(x, units=act_dim)
 def mlp(x, act_dim):
     x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE, 3])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
@@ -90,11 +100,11 @@ def categorical_policy(x, a, mask, action_space):
 """
 Actor-Critics
 """
-def actor_critic(x,y, a, mask, action_space=None):
+def actor_critic(x, a, mask, action_space=None):
     with tf.variable_scope('pi'):
         pi, logp, logp_pi , out= categorical_policy(x, a, mask, action_space)
     with tf.variable_scope('v'):
-        v = tf.squeeze(mlp(y, 1), axis=1)
+        v = tf.squeeze(mlp3(x, 1), axis=1)
     return pi, logp, logp_pi, v, out
 
 class PPOBuffer:
@@ -107,7 +117,8 @@ class PPOBuffer:
     def __init__(self, obs_dim, act_dim, size, gamma=0.99, lam=0.95):
         size = size * 100 # assume the traj can be really long
         self.obs_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
-        self.cobs_buf = np.zeros(combined_shape(size, JOB_SEQUENCE_SIZE*3), dtype=np.float32)
+       # self.cobs_buf = np.zeros(combined_shape(size, JOB_SEQUENCE_SIZE*3), dtype=np.float32)
+        self.cobs_buf = None
         self.act_buf = np.zeros(combined_shape(size, act_dim), dtype=np.float32)
         self.mask_buf = np.zeros(combined_shape(size, MAX_QUEUE_SIZE), dtype=np.float32)
         self.adv_buf = np.zeros(size, dtype=np.float32)
@@ -124,7 +135,7 @@ class PPOBuffer:
         """
         assert self.ptr < self.max_size     # buffer has to have room so you can store
         self.obs_buf[self.ptr] = obs
-        self.cobs_buf[self.ptr] = cobs
+       # self.cobs_buf[self.ptr] = cobs
         self.act_buf[self.ptr] = act
         self.mask_buf[self.ptr] = mask
         self.rew_buf[self.ptr] = rew
@@ -183,7 +194,7 @@ class PPOBuffer:
         actual_adv_buf = (actual_adv_buf - adv_mean) / adv_std
         # print (actual_adv_buf)
 
-        return [self.obs_buf[:actual_size], self.cobs_buf[:actual_size], self.act_buf[:actual_size], self.mask_buf[:actual_size], actual_adv_buf,
+        return [self.obs_buf[:actual_size],  self.act_buf[:actual_size], self.mask_buf[:actual_size], actual_adv_buf,
                 self.ret_buf[:actual_size], self.logp_buf[:actual_size]]
 
 """
@@ -216,15 +227,15 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
 
     # Inputs to computation graph
     x_ph, a_ph = placeholders_from_spaces(env.observation_space, env.action_space)
-    y_ph = placeholder(JOB_SEQUENCE_SIZE*3) # 3 is the number of sequence features
+    #y_ph = placeholder(JOB_SEQUENCE_SIZE*3) # 3 is the number of sequence features
     mask_ph = placeholder(MAX_QUEUE_SIZE)
     adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
 
     # Main outputs from computation graph
-    pi, logp, logp_pi, v, out = actor_critic(x_ph, y_ph, a_ph, mask_ph, **ac_kwargs)
+    pi, logp, logp_pi, v, out = actor_critic(x_ph, a_ph, mask_ph, **ac_kwargs)
 
     # Need all placeholders in *this* order later (to zip with data from buffer)
-    all_phs = [x_ph, y_ph, a_ph, mask_ph, adv_ph, ret_ph, logp_old_ph]
+    all_phs = [x_ph, a_ph, mask_ph, adv_ph, ret_ph, logp_old_ph]
 
     # Every step, get: action, value, and logprob
     get_action_ops = [pi, v, logp_pi, out]
@@ -257,7 +268,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
 
     # Setup model saving
     # logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'action_probs': action_probs, 'log_picked_action_prob': log_picked_action_prob, 'v': v})
-    logger.setup_tf_saver(sess, inputs={'x': x_ph, 'y':y_ph, 'a':a_ph, 'adv':adv_ph, 'mask':mask_ph, 'ret':ret_ph, 'logp_old_ph':logp_old_ph}, outputs={'pi': pi, 'v': v, 'out':out, 'pi_loss':pi_loss, 'v_loss':v_loss, 'approx_ent':approx_ent, 'approx_kl':approx_kl, 'clipped':clipped, 'clipfrac':clipfrac})
+    logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a':a_ph, 'adv':adv_ph, 'mask':mask_ph, 'ret':ret_ph, 'logp_old_ph':logp_old_ph}, outputs={'pi': pi, 'v': v, 'out':out, 'pi_loss':pi_loss, 'v_loss':v_loss, 'approx_ent':approx_ent, 'approx_kl':approx_kl, 'clipped':clipped, 'clipfrac':clipfrac})
 
     def update():
         inputs = {k:v for k,v in zip(all_phs, buf.get())}
@@ -297,7 +308,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
                 else:
                     lst.append(1)
 
-            a, v_t, logp_t, output = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1), y_ph:co.reshape(1,-1),mask_ph: np.array(lst).reshape(1,-1)})
+            a, v_t, logp_t, output = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1), mask_ph: np.array(lst).reshape(1,-1)})
 
 
 
@@ -307,7 +318,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
             '''
 
             # save and log
-            buf.store(o, co, a, np.array(lst), r, v_t, logp_t)
+            buf.store(o,None,  a, np.array(lst), r, v_t, logp_t)
             logger.store(VVals=v_t)
 
             o, r, d, r2 = env.step(a[0])
