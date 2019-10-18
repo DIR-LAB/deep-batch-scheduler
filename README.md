@@ -49,11 +49,38 @@ ssh-add ~/...
 git clone git@github.com:DIR-LAB/deep-batch-scheduler.git
 ```
 
+
+### File Structure
+
+```
+cluster.py: Contains Machine and Cluster classes.
+job.py: Contains Job and Workloads classed. 
+compare-pick-jobs.py: Test training results and compare it with different policies.
+HPCSimPickJobs.py: SchedGym Environment.
+ppo-pick-jobs.py: Train RLScheduler using PPO algorithm.
+```
+
 ### Default Training
 
 ```bash
-python ppo-pick-algms.py --exp_name what-ever-name-you-want --trajs 500 --seed 2
+python ppo-pick-jobs.py --workload "./data/lublin_256.swf" --exp_name your-exp-name --trajs 500 --seed 0
 ```
-There are manyother parameters in the source file.
+There are many other parameters in the source file.
 
-vpg.py and ppo.py are traning the RL agent to pick a job. On the other hand, vpg-pick-algms.py is to train the RL agent to pick a sort algorithm to use to schedule current job queue. 
+### Monitor Training 
+
+After running Default Training, a folder named `logs/your-exp-name/` will be generated under `./data`. 
+
+```bash
+python spinningup/spinup/utils/plot.py ./data/logs/your-exp-name/
+```
+
+It will plot the training curve.
+
+### Test and Compare
+
+After RLScheduler converges, you can test the result and compare it with different policies such as SJF, F1 and so on.
+
+```bash
+python compare-pick-jobs.py --rlmodel "./data/logs/your-exp-name/your-exp-name_s0/" --workload "./data/lublin_256.swf --len 2048 --iter 10"
+```
