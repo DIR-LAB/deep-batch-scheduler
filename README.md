@@ -53,6 +53,7 @@ git clone git@github.com:DIR-LAB/deep-batch-scheduler.git
 ### File Structure
 
 ```
+data/: Contains a series of workload and real-world traces.
 cluster.py: Contains Machine and Cluster classes.
 job.py: Contains Job and Workloads classed. 
 compare-pick-jobs.py: Test training results and compare it with different policies.
