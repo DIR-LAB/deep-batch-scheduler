@@ -30,6 +30,7 @@ def load_policy(model_path, itr='last'):
     get_probs = lambda x ,y  : sess.run(pi, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES), model['mask']:y.reshape(-1, MAX_QUEUE_SIZE)})
     get_v = lambda x : sess.run(v, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES)})
     return get_probs, get_v
+
 def mlp3(x, act_dim):
     x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, 4])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
@@ -55,12 +56,39 @@ def mlp(x, act_dim):
 def mlp2(x, act_dim):
     x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, 4])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    # q = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    # k = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    # v = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    # score = tf.matmul(q,tf.transpose(k,[0,2,1]))
+    # score = tf.nn.softmax(score,-1)
+    # attn = tf.reshape(score,(-1, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE))
+    # x = tf.matmul(attn, v)
     x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
+
     x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
     x = tf.squeeze(tf.layers.dense(x, units=1), axis=-1)
    # x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
    # x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
    # x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
+    return x
+
+def attention(x, act_dim):
+    x = tf.reshape(x, shape=[-1, MAX_QUEUE_SIZE, 4])
+    # x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    q = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    k = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    v = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    score = tf.matmul(q,tf.transpose(k,[0,2,1]))
+    score = tf.nn.softmax(score,-1)
+    attn = tf.reshape(score,(-1, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE))
+    x = tf.matmul(attn, v)
+    x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
+
+    x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
+    x = tf.squeeze(tf.layers.dense(x, units=1), axis=-1)
+    # x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
+    # x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
+    # x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
     return x
 
 def dnn(x_ph, act_dim):
@@ -207,7 +235,7 @@ with early stopping based on approximate KL
 def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0, 
         traj_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
         vf_lr=1e-3, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000,
-        target_kl=0.01, logger_kwargs=dict(), save_freq=10):
+        target_kl=0.01, logger_kwargs=dict(), save_freq=10,pre_trained=0,trained_model=None):
 
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
@@ -226,49 +254,101 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     ac_kwargs['action_space'] = env.action_space
 
     # Inputs to computation graph
-    x_ph, a_ph = placeholders_from_spaces(env.observation_space, env.action_space)
-    #y_ph = placeholder(JOB_SEQUENCE_SIZE*3) # 3 is the number of sequence features
-    mask_ph = placeholder(MAX_QUEUE_SIZE)
-    adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
 
-    # Main outputs from computation graph
-    pi, logp, logp_pi, v, out = actor_critic(x_ph, a_ph, mask_ph, **ac_kwargs)
-
-    # Need all placeholders in *this* order later (to zip with data from buffer)
-    all_phs = [x_ph, a_ph, mask_ph, adv_ph, ret_ph, logp_old_ph]
-
-    # Every step, get: action, value, and logprob
-    get_action_ops = [pi, v, logp_pi, out]
-
-    # Experience buffer
     buf = PPOBuffer(obs_dim, act_dim, traj_per_epoch * JOB_SEQUENCE_SIZE, gamma, lam)
 
-    # Count variables
-    var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
-    logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n'%var_counts)
+    if pre_trained:
+        sess = tf.Session()
+        model = restore_tf_graph(sess, trained_model)
+        logger.log('load pre-trained model')
+        # Count variables
+        var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
+        logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
 
-    # PPO objectives
-    ratio = tf.exp(logp - logp_old_ph)          # pi(a|s) / pi_old(a|s)
-    min_adv = tf.where(adv_ph>0, (1+clip_ratio)*adv_ph, (1-clip_ratio)*adv_ph)
-    pi_loss = -tf.reduce_mean(tf.minimum(ratio * adv_ph, min_adv))
-    v_loss = tf.reduce_mean((ret_ph - v)**2)
+        x_ph = model['x']
+        a_ph = model['a']
+        mask_ph = model['mask']
+        adv_ph = model['adv']
+        ret_ph = model['ret']
+        logp_old_ph = model['logp_old_ph']
 
-    # Info (useful to watch during learning)
-    approx_kl = tf.reduce_mean(logp_old_ph - logp)      # a sample estimate for KL-divergence, easy to compute
-    approx_ent = tf.reduce_mean(-logp)                  # a sample estimate for entropy, also easy to compute
-    clipped = tf.logical_or(ratio > (1+clip_ratio), ratio < (1-clip_ratio))
-    clipfrac = tf.reduce_mean(tf.cast(clipped, tf.float32))
+        pi = model['pi']
+        v = model['v']
+        # logits = model['logits']
+        out = model['out']
+        logp = model['logp']
+        logp_pi = model['logp_pi']
+        pi_loss = model['pi_loss']
+        v_loss = model['v_loss']
+        approx_ent = model['approx_ent']
+        approx_kl = model['approx_kl']
+        clipfrac = model['clipfrac']
+        clipped = model['clipped']
 
-    # Optimizers
-    train_pi = tf.train.AdamOptimizer(learning_rate=pi_lr).minimize(pi_loss)
-    train_v = tf.train.AdamOptimizer(learning_rate=vf_lr).minimize(v_loss)
+        # Optimizers
+        #graph = tf.get_default_graph()
+        #op = sess.graph.get_operations()
+        #[print(m.values()) for m in op]
+        #train_pi = graph.get_tensor_by_name('pi/conv2d/kernel/Adam:0')
+        #train_v = graph.get_tensor_by_name('v/conv2d/kernel/Adam:0')
+        train_pi = tf.get_collection("train_pi")[0]
+        train_v = tf.get_collection("train_v")[0]
+        # train_pi_optimizer = MpiAdamOptimizer(learning_rate=pi_lr, name='AdamLoad')
+        # train_pi = train_pi_optimizer.minimize(pi_loss)
+        # train_v_optimizer = MpiAdamOptimizer(learning_rate=vf_lr, name='AdamLoad')
+        # train_v = train_v_optimizer.minimize(v_loss)
+        # sess.run(tf.variables_initializer(train_pi_optimizer.variables()))
+        # sess.run(tf.variables_initializer(train_v_optimizer.variables()))
+        # Need all placeholders in *this* order later (to zip with data from buffer)
+        all_phs = [x_ph, a_ph, mask_ph, adv_ph, ret_ph, logp_old_ph]
+        # Every step, get: action, value, and logprob
+        get_action_ops = [pi, v, logp_pi, out]
 
-    sess = tf.Session()
-    sess.run(tf.global_variables_initializer())
+    else:
+        x_ph, a_ph = placeholders_from_spaces(env.observation_space, env.action_space)
+        # y_ph = placeholder(JOB_SEQUENCE_SIZE*3) # 3 is the number of sequence features
+        mask_ph = placeholder(MAX_QUEUE_SIZE)
+        adv_ph, ret_ph, logp_old_ph = placeholders(None, None, None)
+
+        # Main outputs from computation graph
+        pi, logp, logp_pi, v, out = actor_critic(x_ph, a_ph, mask_ph, **ac_kwargs)
+
+        # Need all placeholders in *this* order later (to zip with data from buffer)
+        all_phs = [x_ph, a_ph, mask_ph, adv_ph, ret_ph, logp_old_ph]
+
+        # Every step, get: action, value, and logprob
+        get_action_ops = [pi, v, logp_pi, out]
+
+        # Experience buffer
+
+        # Count variables
+        var_counts = tuple(count_vars(scope) for scope in ['pi', 'v'])
+        logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
+
+        # PPO objectives
+        ratio = tf.exp(logp - logp_old_ph)  # pi(a|s) / pi_old(a|s)
+        min_adv = tf.where(adv_ph > 0, (1 + clip_ratio) * adv_ph, (1 - clip_ratio) * adv_ph)
+        pi_loss = -tf.reduce_mean(tf.minimum(ratio * adv_ph, min_adv))
+        v_loss = tf.reduce_mean((ret_ph - v) ** 2)
+
+        # Info (useful to watch during learning)
+        approx_kl = tf.reduce_mean(logp_old_ph - logp)  # a sample estimate for KL-divergence, easy to compute
+        approx_ent = tf.reduce_mean(-logp)  # a sample estimate for entropy, also easy to compute
+        clipped = tf.logical_or(ratio > (1 + clip_ratio), ratio < (1 - clip_ratio))
+        clipfrac = tf.reduce_mean(tf.cast(clipped, tf.float32))
+
+        # Optimizers
+        train_pi = tf.train.AdamOptimizer(learning_rate=pi_lr).minimize(pi_loss)
+        train_v = tf.train.AdamOptimizer(learning_rate=vf_lr).minimize(v_loss)
+        sess = tf.Session()
+        sess.run(tf.global_variables_initializer())
+        tf.add_to_collection("train_pi", train_pi)
+        tf.add_to_collection("train_v", train_v)
+
 
     # Setup model saving
     # logger.setup_tf_saver(sess, inputs={'x': x_ph}, outputs={'action_probs': action_probs, 'log_picked_action_prob': log_picked_action_prob, 'v': v})
-    logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a':a_ph, 'adv':adv_ph, 'mask':mask_ph, 'ret':ret_ph, 'logp_old_ph':logp_old_ph}, outputs={'pi': pi, 'v': v, 'out':out, 'pi_loss':pi_loss, 'v_loss':v_loss, 'approx_ent':approx_ent, 'approx_kl':approx_kl, 'clipped':clipped, 'clipfrac':clipfrac})
+    logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a':a_ph, 'adv':adv_ph, 'mask':mask_ph, 'ret':ret_ph, 'logp_old_ph':logp_old_ph}, outputs={'pi': pi, 'v': v, 'out':out, 'pi_loss':pi_loss, 'logp': logp, 'logp_pi':logp_pi, 'v_loss':v_loss, 'approx_ent':approx_ent, 'approx_kl':approx_kl, 'clipped':clipped, 'clipfrac':clipfrac})
 
     def update():
         inputs = {k:v for k,v in zip(all_phs, buf.get())}
@@ -293,9 +373,11 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
                      DeltaLossV=(v_l_new - v_l_old))
 
     start_time = time.time()
-    [o, co], r, d, ep_ret, ep_len, show_ret = env.reset(), 0, False, 0, 0,0
+    [o, co], r, d, ep_ret, ep_len, show_ret, sjf, f1 = env.reset(), 0, False, 0, 0,0,0,0
 
     # Main loop: collect experience in env and update/log each epoch
+    start_time = time.time()
+    num_total = 0
     for epoch in range(epochs):
         t = 0
         while True:
@@ -311,7 +393,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
             a, v_t, logp_t, output = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1), mask_ph: np.array(lst).reshape(1,-1)})
 
 
-
+            num_total += 1
             '''
             action = np.random.choice(np.arange(MAX_QUEUE_SIZE), p=action_probs)
             log_action_prob = np.log(action_probs[action])
@@ -321,26 +403,30 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
             buf.store(o,None,  a, np.array(lst), r, v_t, logp_t)
             logger.store(VVals=v_t)
 
-            o, r, d, r2 = env.step(a[0])
+            o, r, d, r2, sjf_t, f1_t = env.step(a[0])
             ep_ret += r
             ep_len += 1
             show_ret += r2
+            sjf += sjf_t
+            f1 += f1_t
 
             if d:
                 t += 1
                 buf.finish_path(r)
-                logger.store(EpRet=ep_ret, EpLen=ep_len, ShowRet=show_ret)
-                [o, co], r, d, ep_ret, ep_len, show_ret = env.reset(), 0, False, 0, 0, 0
+                logger.store(EpRet=ep_ret, EpLen=ep_len, ShowRet=show_ret, SJF=sjf, F1=f1)
+                [o, co], r, d, ep_ret, ep_len, show_ret, sjf, f1 = env.reset(), 0, False, 0, 0, 0, 0, 0
                 if t >= traj_per_epoch:
                     # print ("state:", state, "\nlast action in a traj: action_probs:\n", action_probs, "\naction:", action)
                     break
-
+        # print("Sample time:", (time.time()-start_time)/num_total, num_total)
         # Save model
         if (epoch % save_freq == 0) or (epoch == epochs-1):
             logger.save_state({'env': env}, None)
 
         # Perform PPO update!
+        # start_time = time.time()
         update()
+        # print("Train time:", time.time()-start_time)
 
         # Log info about epoch
         logger.log_tabular('Epoch', epoch)
@@ -357,6 +443,8 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
         logger.log_tabular('ClipFrac', average_only=True)
         logger.log_tabular('StopIter', average_only=True)
         logger.log_tabular('ShowRet', average_only=True)
+        logger.log_tabular('SJF', average_only=True)
+        logger.log_tabular('F1', average_only=True)
         logger.log_tabular('Time', time.time()-start_time)
         logger.dump_tabular()
 
@@ -371,8 +459,8 @@ if __name__ == '__main__':
     parser.add_argument('--trajs', type=int, default=100)
     parser.add_argument('--epochs', type=int, default=4000)
     parser.add_argument('--exp_name', type=str, default='ppo')
-    parser.add_argument('--pre_trained', type=int, default=0)
-    parser.add_argument('--trained_model', type=str, default='./data/logs/reinforce-model/reinforce-s0/')
+    parser.add_argument('--pre_trained', type=int, default=1)
+    parser.add_argument('--trained_model', type=str, default='./data/logs/ppo_temp/ppo_temp_s0')
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
@@ -382,6 +470,12 @@ if __name__ == '__main__':
     workload_file = os.path.join(current_dir, args.workload)
     log_data_dir = os.path.join(current_dir, './data/logs/')
     logger_kwargs = setup_logger_kwargs(args.exp_name, seed=args.seed, data_dir=log_data_dir)
+    if args.pre_trained:
+        model_file = os.path.join(current_dir, args.trained_model)
+        # get_probs, get_value = load_policy(model_file, 'last')
 
-    ppo(workload_file, args.model, gamma=args.gamma, seed=args.seed, traj_per_epoch=args.trajs, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+        ppo(workload_file, args.model, gamma=args.gamma, seed=args.seed, traj_per_epoch=args.trajs, epochs=args.epochs,
+        logger_kwargs=logger_kwargs, pre_trained=1,trained_model=os.path.join(model_file,"simple_save"))
+    else:
+        ppo(workload_file, args.model, gamma=args.gamma, seed=args.seed, traj_per_epoch=args.trajs, epochs=args.epochs,
+        logger_kwargs=logger_kwargs, pre_trained=0)

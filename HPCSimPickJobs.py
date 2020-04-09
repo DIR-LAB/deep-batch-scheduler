@@ -111,7 +111,7 @@ class HPCEnv(gym.Env):
         request_processors = job.request_number_of_processors
         request_time = job.request_time
         # run_time = job.run_time
-        return (np.log10(request_time) * request_processors + 870 * np.log10(submit_time))
+        return (np.log10(request_time if request_time>0 else 0.1) * request_processors + 870 * np.log10(submit_time if submit_time>0 else 0.1))
 
     def f2_score(self, job):
         submit_time = job.submit_time
@@ -233,9 +233,9 @@ class HPCEnv(gym.Env):
             self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
 
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))   
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
@@ -329,10 +329,16 @@ class HPCEnv(gym.Env):
     def schedule_curr_sequence_reset(self, score_fn):
         # schedule the sequence of jobs using heuristic algorithm. 
         scheduled_logs = {}
+        # f = False
+        # if score_fn.__name__ == "sjf_score":
+        #     f = True
+        #     num_total = 0
+        # start_time = time.time()
         while True:
             self.job_queue.sort(key=lambda j: score_fn(j))
             job_for_scheduling = self.job_queue[0]
-
+            # if f:
+            #     num_total += 1
             # if selected job needs more resources, skip scheduling and try again after adding new jobs or releasing some resources
             if not self.cluster.can_allocated(job_for_scheduling):
                 self.moveforward_for_resources_backfill_greedy(job_for_scheduling, scheduled_logs)
@@ -351,6 +357,8 @@ class HPCEnv(gym.Env):
             if not not_empty:
                 break
 
+        # if f:
+        #     print((time.time()-start_time)/num_total, num_total)
         # reset again
         self.cluster.reset()
         self.loads.reset()
@@ -489,7 +497,7 @@ class HPCEnv(gym.Env):
         self.pairs = []
         add_skip = False
         for i in range(0, MAX_QUEUE_SIZE):
-            if i < len(self.visible_jobs) and i < (MAX_QUEUE_SIZE ):
+            if i < len(self.visible_jobs) and i < (MAX_QUEUE_SIZE - 1):
                 job = self.visible_jobs[i]
                 submit_time = job.submit_time
                 request_processors = job.request_number_of_processors
@@ -517,12 +525,12 @@ class HPCEnv(gym.Env):
                 else:
                     can_schedule_now = 1e-5
                 self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now])        
-            # elif not add_skip:  # the next job is skip
-            #     add_skip = True
-            #     if self.pivot_job:
-            #         self.pairs.append([None, 1, 1, 1, 1])
-            #     else:
-            #         self.pairs.append([None, 1, 1, 1, 0])
+            elif not add_skip:  # the next job is skip
+                add_skip = True
+                if self.pivot_job:
+                    self.pairs.append([None, 1, 1, 1, 1])
+                else:
+                    self.pairs.append([None, 1, 1, 1, 0])
             else:
                 self.pairs.append([None,0,1,1,0])
 
@@ -705,10 +713,12 @@ class HPCEnv(gym.Env):
 
         if not done:
             obs = self.build_observation()
-            return [obs, 0, False, 0]
+            return [obs, 0, False, 0, 0, 0]
         else:
             rl_total = sum(self.scheduled_rl.values())
             best_total = min(self.scheduled_scores)
+            sjf = self.scheduled_scores[0]
+            f1 = self.scheduled_scores[1]
             rwd2 = (best_total - rl_total)
             rwd = -rl_total
             '''
@@ -719,7 +729,7 @@ class HPCEnv(gym.Env):
             else:
                 rwd = 1    
             '''
-            return [None, rwd, True, rwd2]
+            return [None, rwd, True, rwd2, sjf, f1]
     
     def step_for_test(self, a):
         job_for_scheduling = self.pairs[a][0]
