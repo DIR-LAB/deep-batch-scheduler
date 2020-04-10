@@ -459,7 +459,7 @@ if __name__ == '__main__':
     parser.add_argument('--trajs', type=int, default=100)
     parser.add_argument('--epochs', type=int, default=4000)
     parser.add_argument('--exp_name', type=str, default='ppo')
-    parser.add_argument('--pre_trained', type=int, default=1)
+    parser.add_argument('--pre_trained', type=int, default=0)
     parser.add_argument('--trained_model', type=str, default='./data/logs/ppo_temp/ppo_temp_s0')
     args = parser.parse_args()
 

@@ -190,10 +190,11 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--rlmodel', type=str, default="./data/logs/256attn/256attn_s0")
-    parser.add_argument('--workload', type=str, default='./data/ANL-Intrepid-2009-1.swf')
+    parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=2048)
     parser.add_argument('--seed', '-s', type=int, default=1)
-    parser.add_argument('--iter', '-i', type=int, default=1)
+    parser.add_argument('--iter', '-i', type=int, default=10)
+
     args = parser.parse_args()
 
     current_dir = os.getcwd()
