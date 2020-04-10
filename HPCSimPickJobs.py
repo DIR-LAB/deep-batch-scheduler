@@ -29,6 +29,7 @@ JOB_FEATURES = 4
 DEBUG = False
 
 JOB_SEQUENCE_SIZE = 512
+SKIP_TIME = 60 # skip 60 seconds
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -653,7 +654,9 @@ class HPCEnv(gym.Env):
             return False
 
     def skip_schedule(self):
-        # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
+        # schedule nothing, just move forward to next timestamp. It should 1) add a new job; 2) finish a running job; 3) reach skip time
+        next_time_after_skip = self.current_timestamp + SKIP_TIME
+
         next_resource_release_time = sys.maxsize  # always add jobs if no resource can be released.
         next_resource_release_machines = []
         if self.running_jobs:  # there are running jobs
@@ -668,6 +671,10 @@ class HPCEnv(gym.Env):
             else:
                 return False, 0
 
+        if next_time_after_skip < min(self.loads[self.next_arriving_job_idx].submit_time, next_resource_release_time):
+            self.current_timestamp = next_time_after_skip
+            return False, 0
+        
         if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
             self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
             self.job_queue.append(self.loads[self.next_arriving_job_idx])
