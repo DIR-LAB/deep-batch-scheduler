@@ -106,3 +106,68 @@ class Cluster:
         self.free_node = self.total_node
         for m in self.all_nodes:
             m.reset()
+class FakeList:
+    def __init__(self, l):
+        self.len = l
+    def __len__(self):
+        return self.len
+
+class SimpleCluster:
+    def __init__(self, cluster_name, node_num, num_procs_per_node):
+        self.name = cluster_name
+        self.total_node = node_num
+        self.free_node = node_num
+        self.used_node = 0
+        self.num_procs_per_node = num_procs_per_node
+        self.all_nodes = []
+
+    def feature(self):
+        return [self.free_node]
+
+    def can_allocated(self, job):
+        if job.request_number_of_nodes != -1:
+            if job.request_number_of_nodes > self.free_node:
+                return False
+            else:
+                return True
+
+        request_node = int(math.ceil(float(job.request_number_of_processors)/float(self.num_procs_per_node)))
+        job.request_number_of_nodes = request_node
+        if request_node > self.free_node:
+            return False
+        else:
+            return True
+
+    def allocate(self, job_id, request_num_procs):
+        allocated_nodes = FakeList(0)
+        request_node = int(math.ceil(float(request_num_procs) / float(self.num_procs_per_node)))
+
+        if request_node > self.free_node:
+            return []
+
+        allocated = request_node
+
+        self.used_node += allocated
+        self.free_node -= allocated
+        allocated_nodes.len = allocated
+        if allocated == request_node:
+            return allocated_nodes
+
+        print ("Error in allocation, there are enough free resources but can not allocated!")
+        return []
+
+    def release(self, releases):
+        self.used_node -= len(releases)
+        self.free_node += len(releases)
+
+
+    def is_idle(self):
+        if self.used_node == 0:
+            return True
+        return False
+
+    def reset(self):
+        self.used_node = 0
+        self.free_node = self.total_node
+
+Cluster = SimpleCluster

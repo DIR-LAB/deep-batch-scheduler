@@ -56,6 +56,8 @@ def action_from_obs(o):
     min_time = min([i[0] for i in lst])
     result = [i[1] for i in lst if i[0]==min_time]
     return result[0]
+
+#@profile
 def run_policy(env, get_probs, get_out, nums, iters):
     rl_r = []
     f1_r = [] 
@@ -184,12 +186,14 @@ def run_policy(env, get_probs, get_out, nums, iters):
 
 if __name__ == '__main__':
     import argparse
+    import time
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--rlmodel', type=str, default="./data/logs/256attn/256attn_s0")
-    parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')
+    parser.add_argument('--workload', type=str, default='./data/ANL-Intrepid-2009-1.swf')
     parser.add_argument('--len', '-l', type=int, default=2048)
     parser.add_argument('--seed', '-s', type=int, default=1)
-    parser.add_argument('--iter', '-i', type=int, default=10)
+    parser.add_argument('--iter', '-i', type=int, default=1)
     args = parser.parse_args()
 
     current_dir = os.getcwd()
@@ -203,4 +207,6 @@ if __name__ == '__main__':
     env.my_init(workload_file=workload_file)
     env.seed(args.seed)
 
+    start = time.time()
     run_policy(env, get_probs, get_value, args.len, args.iter)
+    print("elapse: {}".format(time.time()-start))

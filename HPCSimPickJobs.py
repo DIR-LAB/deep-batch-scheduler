@@ -96,6 +96,7 @@ class HPCEnv(gym.Env):
         self.enable_preworkloads = False
         self.pre_workloads = []
 
+    #@profile
     def my_init(self, workload_file = '', sched_file = ''):
         print ("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
@@ -195,7 +196,7 @@ class HPCEnv(gym.Env):
             self.running_jobs.append(_job)
             _job.allocated_machines = self.cluster.allocate(_job.job_id, _job.request_number_of_processors)    
 
-
+    #@profile
     def reset(self):
         self.cluster.reset()
         self.loads.reset()
@@ -279,7 +280,7 @@ class HPCEnv(gym.Env):
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue.append(self.loads[self.start])
         self.next_arriving_job_idx = self.start + 1
-
+    #@profile
     def moveforward_for_resources_backfill_greedy(self, job, scheduled_logs):
         #note that this function is only called when current job can not be scheduled.
         assert not self.cluster.can_allocated(job)
@@ -300,15 +301,16 @@ class HPCEnv(gym.Env):
             self.job_queue.sort(key=lambda _j: self.fcfs_score(_j))
             job_queue_iter_copy = list(self.job_queue)
             for _j in job_queue_iter_copy:
-                if self.cluster.can_allocated(_j) and (self.current_timestamp + _j.request_time) < earliest_start_time:
-                    # we should be OK to schedule the job now
-                    assert _j.scheduled_time == -1  # this job should never be scheduled before.
-                    _j.scheduled_time = self.current_timestamp
-                    _j.allocated_machines = self.cluster.allocate(_j.job_id, _j.request_number_of_processors)
-                    self.running_jobs.append(_j)
-                    score = (self.job_score(_j) / self.num_job_in_batch)  # calculated reward
-                    scheduled_logs[_j.job_id] = score
-                    self.job_queue.remove(_j)  # remove the job from job queue
+                if (self.current_timestamp + _j.request_time) < earliest_start_time:
+                    if self.cluster.can_allocated(_j):
+                        # we should be OK to schedule the job now
+                        assert _j.scheduled_time == -1  # this job should never be scheduled before.
+                        _j.scheduled_time = self.current_timestamp
+                        _j.allocated_machines = self.cluster.allocate(_j.job_id, _j.request_number_of_processors)
+                        self.running_jobs.append(_j)
+                        score = (self.job_score(_j) / self.num_job_in_batch)  # calculated reward
+                        scheduled_logs[_j.job_id] = score
+                        self.job_queue.remove(_j)  # remove the job from job queue
 
             # move to the next timestamp
             assert self.running_jobs
@@ -326,6 +328,7 @@ class HPCEnv(gym.Env):
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job
 
+    #@profile
     def schedule_curr_sequence_reset(self, score_fn):
         # schedule the sequence of jobs using heuristic algorithm. 
         scheduled_logs = {}
@@ -539,6 +542,7 @@ class HPCEnv(gym.Env):
 
         return vector
 
+    #@profile
     def moveforward_for_resources_backfill(self, job):
         #note that this function is only called when current job can not be scheduled.
         assert not self.cluster.can_allocated(job)
@@ -601,6 +605,7 @@ class HPCEnv(gym.Env):
             self.running_jobs.pop(0)  # remove the first running job.
         return False
 
+    #@profile
     def moveforward_for_job(self):
         if self.job_queue:
             return True
@@ -701,7 +706,8 @@ class HPCEnv(gym.Env):
     def valid(self, a):
         action = a[0]
         return self.pairs[action][0]
-        
+
+    #@profile
     def step(self, a):
         job_for_scheduling = self.pairs[a][0]
 
@@ -760,11 +766,12 @@ if __name__ == '__main__':
     env = HPCEnv()
     env.my_init(workload_file=workload_file, sched_file=workload_file)
     env.seed(0)
+    env.reset_for_test(2048,0)
 
-    for _ in range(100):
+    for _ in range(1):
         _, r = env.reset(), 0
         while True:
-            _, r, d, _ = env.step(0)
+            _, r, d, _, _, _ = env.step(0)
             if d:
                 print ("Final Reward:", r)
                 break
