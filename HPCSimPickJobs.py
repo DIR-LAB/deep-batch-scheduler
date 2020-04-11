@@ -64,7 +64,7 @@ def discount_cumsum(x, discount):
 
 
 class HPCEnv(gym.Env):
-    def __init__(self):  # do nothing and return. A workaround for passing parameters to the environment
+    def __init__(self,shuffle=False):  # do nothing and return. A workaround for passing parameters to the environment
         super(HPCEnv, self).__init__()
         print("Initialize Simple HPC Env")
 
@@ -93,8 +93,8 @@ class HPCEnv(gym.Env):
         self.penalty = 0
         self.pivot_job = False
         self.scheduled_scores = []
-
         self.enable_preworkloads = False
+        self.shuffle = shuffle
         self.pre_workloads = []
 
     #@profile
@@ -412,7 +412,8 @@ class HPCEnv(gym.Env):
             else:
                 break
         self.visible_jobs.sort(key=lambda j: self.fcfs_score(j))
-        # random.shuffle(self.visible_jobs)
+        if self.shuffle:
+            random.shuffle(self.visible_jobs)
 
 
         #@ddai: optimize the observable jobs

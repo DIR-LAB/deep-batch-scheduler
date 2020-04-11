@@ -114,9 +114,12 @@ def dnn(x_ph, act_dim):
 """
 Policies
 """
-def categorical_policy(x, a, mask, action_space):
+def categorical_policy(x, a, mask, action_space, attn):
     act_dim = action_space.n
-    output_layer = mlp2(x, act_dim)
+    if attn:
+        output_layer = attention(x, act_dim)
+    else:
+        output_layer = mlp2(x, act_dim)
     output_layer = output_layer+(mask-1)*1000000
     logp_all = tf.nn.log_softmax(output_layer)
 
@@ -128,9 +131,9 @@ def categorical_policy(x, a, mask, action_space):
 """
 Actor-Critics
 """
-def actor_critic(x, a, mask, action_space=None):
+def actor_critic(x, a, mask, action_space=None, attn=False):
     with tf.variable_scope('pi'):
-        pi, logp, logp_pi , out= categorical_policy(x, a, mask, action_space)
+        pi, logp, logp_pi , out= categorical_policy(x, a, mask, action_space, attn)
     with tf.variable_scope('v'):
         v = tf.squeeze(mlp3(x, 1), axis=1)
     return pi, logp, logp_pi, v, out
@@ -235,7 +238,7 @@ with early stopping based on approximate KL
 def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0, 
         traj_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
         vf_lr=1e-3, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000,
-        target_kl=0.01, logger_kwargs=dict(), save_freq=10,pre_trained=0,trained_model=None):
+        target_kl=0.01, logger_kwargs=dict(), save_freq=10,pre_trained=0,trained_model=None,attn=False,shuffle=False):
 
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
@@ -243,7 +246,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    env = HPCEnv()
+    env = HPCEnv(shuffle=shuffle)
     env.my_init(workload_file=workload_file, sched_file=model_path)
     env.seed(seed)
 
@@ -252,6 +255,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     
     # Share information about action space with policy architecture
     ac_kwargs['action_space'] = env.action_space
+    ac_kwargs['attn'] = attn
 
     # Inputs to computation graph
 
@@ -461,6 +465,8 @@ if __name__ == '__main__':
     parser.add_argument('--exp_name', type=str, default='ppo')
     parser.add_argument('--pre_trained', type=int, default=0)
     parser.add_argument('--trained_model', type=str, default='./data/logs/ppo_temp/ppo_temp_s0')
+    parser.add_argument('--attn', type=int, default=0)
+    parser.add_argument('--shuffle', type=int, default=0)
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
@@ -475,7 +481,8 @@ if __name__ == '__main__':
         # get_probs, get_value = load_policy(model_file, 'last')
 
         ppo(workload_file, args.model, gamma=args.gamma, seed=args.seed, traj_per_epoch=args.trajs, epochs=args.epochs,
-        logger_kwargs=logger_kwargs, pre_trained=1,trained_model=os.path.join(model_file,"simple_save"))
+        logger_kwargs=logger_kwargs, pre_trained=1,trained_model=os.path.join(model_file,"simple_save"),attn=args.attn,
+            shuffle=args.shuffle)
     else:
         ppo(workload_file, args.model, gamma=args.gamma, seed=args.seed, traj_per_epoch=args.trajs, epochs=args.epochs,
-        logger_kwargs=logger_kwargs, pre_trained=0)
+        logger_kwargs=logger_kwargs, pre_trained=0, attn=args.attn,shuffle=args.shuffle)
