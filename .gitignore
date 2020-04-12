@@ -7,3 +7,4 @@ __pycache__/*
 *.pkl
 **/*.egg-info
 .python-version
+data/logs

@@ -32,7 +32,7 @@ def load_policy(model_path, itr='last'):
     return get_probs, get_v
 
 def mlp3(x, act_dim):
-    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, 4])
+    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
@@ -43,7 +43,7 @@ def mlp3(x, act_dim):
 
     return tf.layers.dense(x, units=act_dim)
 def mlp(x, act_dim):
-    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE, 3])
+    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE, JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
@@ -73,7 +73,7 @@ def mlp2(x, act_dim):
     return x
 
 def attention(x, act_dim):
-    x = tf.reshape(x, shape=[-1, MAX_QUEUE_SIZE, 4])
+    x = tf.reshape(x, shape=[-1, MAX_QUEUE_SIZE, JOB_FEATURES])
     # x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     q = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     k = tf.layers.dense(x, units=32, activation=tf.nn.relu)

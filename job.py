@@ -99,9 +99,9 @@ class Job:
 
 
 class Workloads:
-    all_jobs = []
 
     def __init__(self, path):
+        self.all_jobs = []
         self.max = 0
         self.max_exec_time = 0
         self.min_exec_time = sys.maxsize
