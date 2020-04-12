@@ -526,7 +526,7 @@ class HPCEnv(gym.Env):
         self.pairs = []
         add_skip = False
         for i in range(0, MAX_QUEUE_SIZE):
-            if i < len(self.visible_jobs) and i < (MAX_QUEUE_SIZE - 1):
+            if i < len(self.visible_jobs) and i < (MAX_QUEUE_SIZE ):
                 job = self.visible_jobs[i]
                 submit_time = job.submit_time
                 request_processors = job.request_number_of_processors
@@ -554,12 +554,12 @@ class HPCEnv(gym.Env):
                 else:
                     can_schedule_now = 1e-5
                 self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now])        
-            elif not add_skip:  # the next job is skip
-                add_skip = True
-                if self.pivot_job:
-                    self.pairs.append([None, 1, 1, 1, 1])
-                else:
-                    self.pairs.append([None, 1, 1, 1, 0])
+            # elif not add_skip:  # the next job is skip
+            #     add_skip = True
+            #     if self.pivot_job:
+            #         self.pairs.append([None, 1, 1, 1, 1])
+            #     else:
+            #         self.pairs.append([None, 1, 1, 1, 0])
             else:
                 self.pairs.append([None,0,1,1,0])
 
