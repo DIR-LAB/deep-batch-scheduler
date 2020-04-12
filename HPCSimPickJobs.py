@@ -27,9 +27,10 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 # each job has three features: wait_time, requested_node, runtime, machine states,
 JOB_FEATURES = 4
 DEBUG = False
+BACKFIL = False
 
 JOB_SEQUENCE_SIZE = 512
-SKIP_TIME = 60 # skip 60 seconds
+SKIP_TIME = 360 # skip 60 seconds
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -281,6 +282,27 @@ class HPCEnv(gym.Env):
         self.current_timestamp = self.loads[self.start].submit_time
         self.job_queue.append(self.loads[self.start])
         self.next_arriving_job_idx = self.start + 1
+    
+    def skip_for_resources_greedy(self, job, scheduled_logs):
+        #note that this function is only called when current job can not be scheduled.
+        assert not self.cluster.can_allocated(job)
+
+        while not self.cluster.can_allocated(job):
+            # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
+            assert self.running_jobs
+            self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+            next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+            next_resource_release_machines = self.running_jobs[0].allocated_machines
+
+            if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
+                self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
+                self.job_queue.append(self.loads[self.next_arriving_job_idx])
+                self.next_arriving_job_idx += 1
+            else:
+                self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
+                self.cluster.release(next_resource_release_machines)
+                self.running_jobs.pop(0)  # remove the first running job.
+
     #@profile
     def moveforward_for_resources_backfill_greedy(self, job, scheduled_logs):
         #note that this function is only called when current job can not be scheduled.
@@ -345,8 +367,10 @@ class HPCEnv(gym.Env):
             #     num_total += 1
             # if selected job needs more resources, skip scheduling and try again after adding new jobs or releasing some resources
             if not self.cluster.can_allocated(job_for_scheduling):
-                self.moveforward_for_resources_backfill_greedy(job_for_scheduling, scheduled_logs)
-                # self.skip_for_resources()
+                if BACKFIL:
+                    self.moveforward_for_resources_backfill_greedy(job_for_scheduling, scheduled_logs)
+                else:
+                    self.skip_for_resources_greedy(job_for_scheduling, scheduled_logs)
             
             assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
             job_for_scheduling.scheduled_time = self.current_timestamp
@@ -591,21 +615,24 @@ class HPCEnv(gym.Env):
                 self.running_jobs.pop(0)  # remove the first running job
     
     def skip_for_resources(self):
-        # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
-        assert self.running_jobs
-        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
-        next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
-        next_resource_release_machines = self.running_jobs[0].allocated_machines
+        #note that this function is only called when current job can not be scheduled.
+        assert not self.cluster.can_allocated(job)
 
-        if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
-            self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
-            self.job_queue.append(self.loads[self.next_arriving_job_idx])
-            self.next_arriving_job_idx += 1
-        else:
-            self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
-            self.cluster.release(next_resource_release_machines)
-            self.running_jobs.pop(0)  # remove the first running job.
-        return False
+        while not self.cluster.can_allocated(job):
+            # schedule nothing, just move forward to next timestamp. It should just add a new job or finish a running job
+            assert self.running_jobs
+            self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
+            next_resource_release_time = (self.running_jobs[0].scheduled_time + self.running_jobs[0].run_time)
+            next_resource_release_machines = self.running_jobs[0].allocated_machines
+
+            if self.next_arriving_job_idx < self.last_job_in_batch and self.loads[self.next_arriving_job_idx].submit_time <= next_resource_release_time:
+                self.current_timestamp = max(self.current_timestamp, self.loads[self.next_arriving_job_idx].submit_time)
+                self.job_queue.append(self.loads[self.next_arriving_job_idx])
+                self.next_arriving_job_idx += 1
+            else:
+                self.current_timestamp = max(self.current_timestamp, next_resource_release_time)
+                self.cluster.release(next_resource_release_machines)
+                self.running_jobs.pop(0)  # remove the first running job.
 
     #@profile
     def moveforward_for_job(self):
@@ -689,8 +716,10 @@ class HPCEnv(gym.Env):
     def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
-            self.moveforward_for_resources_backfill(job_for_scheduling)
-            # self.skip_for_resources()
+            if BACKFIL:
+                self.moveforward_for_resources_backfill(job_for_scheduling)
+            else:
+                self.skip_for_resources(job_for_scheduling)
         
         # we should be OK to schedule the job now
         assert job_for_scheduling.scheduled_time == -1  # this job should never be scheduled before.
