@@ -54,7 +54,7 @@ def mlp(x, act_dim):
 
     return tf.layers.dense(x, units=act_dim)
 def mlp2(x, act_dim):
-    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, 4])
+    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     # q = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     # k = tf.layers.dense(x, units=32, activation=tf.nn.relu)
