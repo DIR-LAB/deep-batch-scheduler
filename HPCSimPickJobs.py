@@ -769,7 +769,6 @@ class HPCEnv(gym.Env):
     #@profile
     def step(self, a):
         job_for_scheduling = self.pairs[a][0]
-
         if not job_for_scheduling:
             done, _ = self.skip_schedule()
         else:

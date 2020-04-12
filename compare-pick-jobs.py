@@ -93,15 +93,16 @@ def run_policy(env, get_probs, get_out, nums, iters):
             skip_ = []
             lst = []
             for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
-                if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
+                if all(o[i:i + JOB_FEATURES] == [0] + [1] * (JOB_FEATURES - 2) + [0]):
                     lst.append(0)
-                elif o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
+                elif all(o[i:i + JOB_FEATURES] == [1] * JOB_FEATURES):
                     lst.append(0)
                 else:
                     count += 1
-                    if o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
+                    if all(o[i:i + JOB_FEATURES] == [1] * (JOB_FEATURES-1) + [0]):
                         skip_.append(math.floor(i/JOB_FEATURES))
                     lst.append(1)
+
             out = get_out(o,np.array(lst))
             softmax_out = tf.nn.softmax(out)
             confidence = tf.reduce_max(softmax_out)
@@ -189,7 +190,7 @@ if __name__ == '__main__':
     import time
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--rlmodel', type=str, default="./data/logs/256attn/256attn_s0")
+    parser.add_argument('--rlmodel', type=str, default="./data/logs/ppo/ppo_s0")
     parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=2048)
     parser.add_argument('--seed', '-s', type=int, default=1)

@@ -387,15 +387,15 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
         while True:
             lst = []
             for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
-                if o[i] == 0 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 0:
+                if all(o[i:i+JOB_FEATURES] == [0]+[1]*(JOB_FEATURES-2)+[0]):
                     lst.append(0)
-                elif o[i] == 1 and o[i+1] == 1 and o[i+2] == 1 and o[i+3] == 1:
+                elif all(o[i:i+JOB_FEATURES] == [1]*JOB_FEATURES):
                     lst.append(0)
                 else:
                     lst.append(1)
 
             a, v_t, logp_t, output = sess.run(get_action_ops, feed_dict={x_ph: o.reshape(1,-1), mask_ph: np.array(lst).reshape(1,-1)})
-
+            # print(a, end=" ")
 
             num_total += 1
             '''
