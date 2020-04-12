@@ -106,6 +106,9 @@ class Workloads:
         self.max_exec_time = 0
         self.min_exec_time = sys.maxsize
         self.max_job_id = 0
+
+        self.max_requested_memory = 0
+        self.max_user_id = 0
         self.max_group_id = 0
         self.max_executable_number = 0
         self.max_job_id = 0
@@ -126,9 +129,17 @@ class Workloads:
                     self.max_exec_time = j.run_time
                 if j.run_time < self.min_exec_time:
                     self.min_exec_time = j.run_time
+                if j.request_memory > self.max_requested_memory:
+                    self.max_requested_memory = j.request_memory
+                if j.user_id > self.max_user_id:
+                    self.max_user_id = j.user_id
+                if j.group_id > self.max_group_id:
+                    self.max_group_id = j.group_id
+                if j.executable_number > self.max_executable_number:
+                    self.max_executable_number = j.executable_number
 
                 self.all_jobs.append(j)
-                
+
                 if j.request_number_of_processors > self.max:
                     self.max = j.request_number_of_processors
 
@@ -160,7 +171,7 @@ if __name__ == "__main__":
     print (load.max_nodes, load.max_procs)
     print (load[0].__feature__())
     print (load[1].__feature__())
-    
+
     # empty_job_str = "0        0      0    0   0     0    0   0  0 0  0   0   0  0  0 0 0 0"
     # empty_job = Job(empty_job_str)
     # print (empty_job.job_id, empty_job.feature())

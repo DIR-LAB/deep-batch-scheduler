@@ -24,8 +24,8 @@ MLP_SIZE = 256
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
-# each job has three features: wait_time, requested_node, runtime, machine states,
-JOB_FEATURES = 4
+# each job has three features: wait_time, requested_node, runtime, machine states, + 4 (requested_memory, user_id, group_id, exec_id)
+JOB_FEATURES = 8
 DEBUG = False
 BACKFIL = False
 
@@ -549,19 +549,41 @@ class HPCEnv(gym.Env):
                 normalized_earliest_start_time = min(float(earliest_start_time) / float(MAX_WAIT_TIME), 1.0 - 1e-5)
                 '''
 
+                # add extra parameters, include "Requested Memory", "User Id", "Groupd Id", "Exectuable Id", if its value does not exist in the trace (-1), we set it to 1 by default.
+                if job.request_memory == -1:
+                    normalized_request_memory = 1
+                else:
+                    normalized_request_memory = min(float(job.request_memory)/float(self.loads.max_requested_memory), 1.0 - 1e-5)
+
+                if job.user_id == -1:
+                    normalized_user_id = 1
+                else:
+                    normalized_user_id = min(float(job.user_id)/float(self.loads.max_user_id), 1.0-1e-5)
+
+                if job.group_id == -1:
+                    normalized_group_id = 1
+                else:
+                    normalized_group_id = min(float(job.group_id)/float(self.loads.max_group_id), 1.0-1e-5)
+
+                if job.executable_number == -1:
+                    normalized_executable_id = 1
+                else:
+                    normalized_executable_id = min(float(job.executable_number)/float(self.loads.max_executable_number), 1.0-1e-5)
+
                 if self.cluster.can_allocated(job):
                     can_schedule_now = 1.0 - 1e-5
                 else:
                     can_schedule_now = 1e-5
-                self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, can_schedule_now])        
+                self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, normalized_request_memory, normalized_user_id, normalized_group_id, normalized_executable_id, can_schedule_now])
+
             elif not add_skip:  # the next job is skip
                 add_skip = True
                 if self.pivot_job:
-                    self.pairs.append([None, 1, 1, 1, 1])
+                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 1])
                 else:
-                    self.pairs.append([None, 1, 1, 1, 0])
+                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 0])
             else:
-                self.pairs.append([None,0,1,1,0])
+                self.pairs.append([None,0,1,1,1,1,1,1,0])
 
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
