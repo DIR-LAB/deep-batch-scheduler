@@ -614,7 +614,7 @@ class HPCEnv(gym.Env):
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job
     
-    def skip_for_resources(self):
+    def skip_for_resources(self, job):
         #note that this function is only called when current job can not be scheduled.
         assert not self.cluster.can_allocated(job)
 
