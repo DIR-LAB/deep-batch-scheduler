@@ -130,7 +130,8 @@ def run_policy(env, get_probs, get_out, nums, iters):
             o, r, d, _ = env.step_for_test(a)
             rl += r
             if d:
-                print("RL decision ratio:",rl_decisions/total_decisions)
+                # print("RL decision ratio:",rl_decisions/total_decisions)
+                print(total_decisions)
                 break
         rl_r.append(rl)
         print ("")
@@ -196,6 +197,8 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', type=int, default=1)
     parser.add_argument('--iter', '-i', type=int, default=10)
     parser.add_argument('--shuffle', type=int, default=0)
+    parser.add_argument('--backfil', type=int, default=0)
+    parser.add_argument('--skip', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -206,7 +209,7 @@ if __name__ == '__main__':
     get_probs, get_value = load_policy(model_file, 'last') 
     
     # initialize the environment from scratch
-    env = HPCEnv(shuffle)
+    env = HPCEnv(shuffle=args.shuffle, backfil=args.backfil, skip=args.skip)
     env.my_init(workload_file=workload_file)
     env.seed(args.seed)
 

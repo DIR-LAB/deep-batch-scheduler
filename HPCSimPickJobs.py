@@ -18,7 +18,7 @@ from gym import spaces
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
 
-MAX_QUEUE_SIZE = 128
+MAX_QUEUE_SIZE = 16
 MLP_SIZE = 256
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -27,9 +27,8 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 # each job has three features: wait_time, requested_node, runtime, machine states,
 JOB_FEATURES = 8
 DEBUG = False
-BACKFIL = False
 
-JOB_SEQUENCE_SIZE = 256
+JOB_SEQUENCE_SIZE = 64
 SKIP_TIME = 360 # skip 60 seconds
 
 def combined_shape(length, shape=None):
@@ -65,7 +64,7 @@ def discount_cumsum(x, discount):
 
 
 class HPCEnv(gym.Env):
-    def __init__(self,shuffle=False):  # do nothing and return. A workaround for passing parameters to the environment
+    def __init__(self,shuffle=False, backfil=False, skip=False):  # do nothing and return. A workaround for passing parameters to the environment
         super(HPCEnv, self).__init__()
         print("Initialize Simple HPC Env")
 
@@ -95,8 +94,11 @@ class HPCEnv(gym.Env):
         self.pivot_job = False
         self.scheduled_scores = []
         self.enable_preworkloads = False
-        self.shuffle = shuffle
         self.pre_workloads = []
+
+        self.shuffle = shuffle
+        self.backfil = backfil
+        self.skip = skip
 
     #@profile
     def my_init(self, workload_file = '', sched_file = ''):
@@ -367,7 +369,7 @@ class HPCEnv(gym.Env):
             #     num_total += 1
             # if selected job needs more resources, skip scheduling and try again after adding new jobs or releasing some resources
             if not self.cluster.can_allocated(job_for_scheduling):
-                if BACKFIL:
+                if self.backfil:
                     self.moveforward_for_resources_backfill_greedy(job_for_scheduling, scheduled_logs)
                 else:
                     self.skip_for_resources_greedy(job_for_scheduling, scheduled_logs)
@@ -576,12 +578,12 @@ class HPCEnv(gym.Env):
                     can_schedule_now = 1e-5
                 self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, normalized_request_memory, normalized_user_id, normalized_group_id, normalized_executable_id, can_schedule_now])
 
-            # elif not add_skip:  # the next job is skip
-            #     add_skip = True
-            #     if self.pivot_job:
-            #         self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 1])
-            #     else:
-            #         self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 0])
+            elif self.skip and not add_skip:  # the next job is skip
+                add_skip = True
+                if self.pivot_job:
+                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 1])
+                else:
+                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 0])
             else:
                 self.pairs.append([None,0,1,1,1,1,1,1,0])
 
@@ -738,7 +740,7 @@ class HPCEnv(gym.Env):
     def schedule(self, job_for_scheduling):
         # make sure we move forward and release needed resources
         if not self.cluster.can_allocated(job_for_scheduling):
-            if BACKFIL:
+            if self.backfil:
                 self.moveforward_for_resources_backfill(job_for_scheduling)
             else:
                 self.skip_for_resources(job_for_scheduling)
