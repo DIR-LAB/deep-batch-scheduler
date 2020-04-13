@@ -18,7 +18,7 @@ from gym import spaces
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
 
-MAX_QUEUE_SIZE = 16
+MAX_QUEUE_SIZE = 128
 MLP_SIZE = 256
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 8
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 64
+JOB_SEQUENCE_SIZE = 256
 SKIP_TIME = 360 # skip 60 seconds
 
 def combined_shape(length, shape=None):

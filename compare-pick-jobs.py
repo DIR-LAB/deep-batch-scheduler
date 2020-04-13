@@ -131,7 +131,7 @@ def run_policy(env, get_probs, get_out, nums, iters):
             rl += r
             if d:
                 # print("RL decision ratio:",rl_decisions/total_decisions)
-                print(total_decisions)
+                print("Sequence Length:",total_decisions)
                 break
         rl_r.append(rl)
         print ("")
