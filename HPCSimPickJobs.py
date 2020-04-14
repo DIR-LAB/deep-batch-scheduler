@@ -64,7 +64,7 @@ def discount_cumsum(x, discount):
 
 
 class HPCEnv(gym.Env):
-    def __init__(self,shuffle=False, backfil=False, skip=False):  # do nothing and return. A workaround for passing parameters to the environment
+    def __init__(self,shuffle=False, backfil=False, skip=False, job_score_type=0):  # do nothing and return. A workaround for passing parameters to the environment
         super(HPCEnv, self).__init__()
         print("Initialize Simple HPC Env")
 
@@ -99,6 +99,9 @@ class HPCEnv(gym.Env):
         self.shuffle = shuffle
         self.backfil = backfil
         self.skip = skip
+        # 0: Average bounded slowdown, 1: Average waiting time
+        # 2: Average turnaround time, 3: Resource utilization
+        self.job_score_type = job_score_type
 
     #@profile
     def my_init(self, workload_file = '', sched_file = ''):
@@ -689,13 +692,25 @@ class HPCEnv(gym.Env):
                 self.running_jobs.pop(0)  # remove the first running job.
 
     def job_score(self, job_for_scheduling):
-        # wait time
-        # _tmp = float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time)
-        # bsld
-        _tmp = max(1.0, (float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
-                        /
-                        max(job_for_scheduling.run_time, 10)))
-        # Weight larger jobs.
+
+        # 0: Average bounded slowdown, 1: Average waiting time
+        # 2: Average turnaround time, 3: Resource utilization
+        if self.job_score_type == 0:
+            # bsld
+            _tmp = max(1.0, (float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
+                            /
+                            max(job_for_scheduling.run_time, 10)))
+        elif self.job_score_type == 1:
+            #wait time
+            _tmp = float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time)
+        elif self.job_score_type == 2:
+            raise NotImplementedError
+        elif self.job_score_type == 3:
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
+
+            # Weight larger jobs.
         #_tmp = _tmp * (job_for_scheduling.run_time * job_for_scheduling.request_number_of_processors)
         return _tmp
 
