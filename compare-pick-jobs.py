@@ -58,7 +58,7 @@ def action_from_obs(o):
     return result[0]
 
 #@profile
-def run_policy(env, get_probs, get_out, nums, iters):
+def run_policy(env, get_probs, get_out, nums, iters, score_type):
     rl_r = []
     f1_r = [] 
     f2_r = []
@@ -176,7 +176,17 @@ def run_policy(env, get_probs, get_out, nums, iters):
     # xticklabels = ['FCFS', 'WFP', 'UNI', 'SJF', 'RL']
     plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
              xticklabels=xticklabels)
-    plt.ylabel("Average bounded slowdown")
+    if score_type == 0:
+        plt.ylabel("Average bounded slowdown")
+    elif score_type == 1:
+        plt.ylabel("Average waiting time")
+    elif score_type == 2:
+        plt.ylabel("Average turnaround time")
+    elif score_type == 3:
+        plt.ylabel("Resource utilization")
+    else:
+        raise NotImplementedError
+
     # plt.ylabel("Average waiting time (s)")
     plt.xlabel("Scheduling Policies")
     # plt.tick_params(axis='both', which='major', labelsize=40)
@@ -215,5 +225,5 @@ if __name__ == '__main__':
     env.seed(args.seed)
 
     start = time.time()
-    run_policy(env, get_probs, get_value, args.len, args.iter)
+    run_policy(env, get_probs, get_value, args.len, args.iter, args.score_type)
     print("elapse: {}".format(time.time()-start))
