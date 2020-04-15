@@ -125,32 +125,23 @@ class SimpleCluster:
         return [self.free_node]
 
     def can_allocated(self, job):
-        if job.request_number_of_nodes != -1:
-            if job.request_number_of_nodes > self.free_node:
-                return False
-            else:
-                return True
-
-        request_node = int(math.ceil(float(job.request_number_of_processors)/float(self.num_procs_per_node)))
-        job.request_number_of_nodes = request_node
-        if request_node > self.free_node:
+        if job.request_number_of_processors > self.free_node:
             return False
         else:
             return True
 
     def allocate(self, job_id, request_num_procs):
         allocated_nodes = FakeList(0)
-        request_node = int(math.ceil(float(request_num_procs) / float(self.num_procs_per_node)))
 
-        if request_node > self.free_node:
+        if request_num_procs > self.free_node:
             return []
 
-        allocated = request_node
+        allocated = request_num_procs
 
         self.used_node += allocated
         self.free_node -= allocated
         allocated_nodes.len = allocated
-        if allocated == request_node:
+        if allocated == request_num_procs:
             return allocated_nodes
 
         print ("Error in allocation, there are enough free resources but can not allocated!")
