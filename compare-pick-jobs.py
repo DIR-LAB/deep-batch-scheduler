@@ -193,12 +193,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--rlmodel', type=str, default="./data/logs/ppo/ppo_s0")
     parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')
-    parser.add_argument('--len', '-l', type=int, default=2048)
+    parser.add_argument('--len', '-l', type=int, default=1024)
     parser.add_argument('--seed', '-s', type=int, default=1)
     parser.add_argument('--iter', '-i', type=int, default=10)
     parser.add_argument('--shuffle', type=int, default=0)
     parser.add_argument('--backfil', type=int, default=0)
     parser.add_argument('--skip', type=int, default=0)
+    parser.add_argument('--score_type', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -209,7 +210,7 @@ if __name__ == '__main__':
     get_probs, get_value = load_policy(model_file, 'last') 
     
     # initialize the environment from scratch
-    env = HPCEnv(shuffle=args.shuffle, backfil=args.backfil, skip=args.skip)
+    env = HPCEnv(shuffle=args.shuffle, backfil=args.backfil, skip=args.skip, job_score_type=args.score_type)
     env.my_init(workload_file=workload_file)
     env.seed(args.seed)
 
