@@ -64,7 +64,7 @@ def discount_cumsum(x, discount):
 
 
 class HPCEnv(gym.Env):
-    def __init__(self,shuffle=False, backfil=False, skip=False, job_score_type=0):  # do nothing and return. A workaround for passing parameters to the environment
+    def __init__(self,shuffle=False, backfil=False, skip=False, job_score_type=0, batch_job_slice=0):  # do nothing and return. A workaround for passing parameters to the environment
         super(HPCEnv, self).__init__()
         print("Initialize Simple HPC Env")
 
@@ -102,6 +102,7 @@ class HPCEnv(gym.Env):
         # 0: Average bounded slowdown, 1: Average waiting time
         # 2: Average turnaround time, 3: Resource utilization
         self.job_score_type = job_score_type
+        self.batch_job_slice = batch_job_slice
 
     #@profile
     def my_init(self, workload_file = '', sched_file = ''):
@@ -228,7 +229,11 @@ class HPCEnv(gym.Env):
         self.pre_workloads = []
         
         # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
-        self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
+        assert self.batch_job_slice == 0 or self.batch_job_slice>=job_sequence_size
+        if self.batch_job_slice == 0:
+            self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
+        else:
+            self.start = self.np_random.randint(job_sequence_size, (self.batch_job_slice - job_sequence_size - 1))
         # self.start = 1208
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
@@ -279,7 +284,11 @@ class HPCEnv(gym.Env):
 
         job_sequence_size = num
 
-        self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
+        assert self.batch_job_slice == 0 or self.batch_job_slice>=job_sequence_size
+        if self.batch_job_slice == 0:
+            self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
+        else:
+            self.start = self.np_random.randint(job_sequence_size, (self.batch_job_slice - job_sequence_size - 1))
         #self.start = start
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size

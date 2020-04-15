@@ -210,6 +210,7 @@ if __name__ == '__main__':
     parser.add_argument('--backfil', type=int, default=0)
     parser.add_argument('--skip', type=int, default=0)
     parser.add_argument('--score_type', type=int, default=0)
+    parser.add_argument('--batch_job_slice', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -220,7 +221,8 @@ if __name__ == '__main__':
     get_probs, get_value = load_policy(model_file, 'last') 
     
     # initialize the environment from scratch
-    env = HPCEnv(shuffle=args.shuffle, backfil=args.backfil, skip=args.skip, job_score_type=args.score_type)
+    env = HPCEnv(shuffle=args.shuffle, backfil=args.backfil, skip=args.skip, job_score_type=args.score_type,
+                 batch_job_slice=args.batch_job_slice)
     env.my_init(workload_file=workload_file)
     env.seed(args.seed)
 
