@@ -36,12 +36,12 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
 
     if isinstance(data, list):
         data = pd.concat(data, ignore_index=True)
-    # sns.set()
-    plt.figure(figsize=(7.5, 4.5))
-    sns.set(style="white", font_scale=1.5)
-    blue = (0.2980392156862745, 0.4470588235294118, 0.6901960784313725)
-    red = (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)
-    sns.set_palette([blue, red])
+
+    # plt.figure(figsize=(7.5, 4.5))
+    # sns.set(style="white", font_scale=1.5)
+    # blue = (0.2980392156862745, 0.4470588235294118, 0.6901960784313725)
+    # red = (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)
+    # sns.set_palette([blue, red])
     sns.tsplot(data=data, time=xaxis, value=value, unit="Unit", condition=condition, ci='sd', **kwargs)
     """
     If you upgrade to any version of Seaborn greater than 0.8.1, switch from 
@@ -51,7 +51,7 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
 
     Changes the colorscheme and the default legend style, though.
     """
-    plt.xlim([0,1.5e7])
+    # plt.xlim([0,1.5e7])
 
     plt.legend(loc=4).set_draggable(True)
 
@@ -70,12 +70,12 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
 
     plt.tight_layout(pad=0.5)
 
-def get_datasets(logdir, condition=None):
+def get_datasets(logdir, condition=None, other_algos=False):
     """
     Recursively look through logdir for output files produced by
-    spinup.logx.Logger. 
+    spinup.logx.Logger.
 
-    Assumes that any file "progress.txt" is a valid hit. 
+    Assumes that any file "progress.txt" is a valid hit.
     """
     global exp_idx
     global units
@@ -105,6 +105,19 @@ def get_datasets(logdir, condition=None):
                 continue
             performance = 'AverageTestEpRet' if 'AverageTestEpRet' in exp_data else 'AverageEpRet'
             exp_data.insert(len(exp_data.columns),'Unit',unit)
+            if other_algos:
+                exp_data2 = exp_data.copy()
+                exp_data2.insert(len(exp_data2.columns), 'Condition1', "F1")
+                exp_data2.insert(len(exp_data2.columns), 'Condition2', "F1")
+                exp_data2.insert(len(exp_data2.columns), 'Performance', -exp_data["F1"])
+                datasets.append(exp_data2)
+
+                exp_data3 = exp_data.copy()
+                exp_data3.insert(len(exp_data3.columns), 'Condition1', "SJF")
+                exp_data3.insert(len(exp_data3.columns), 'Condition2', "SJF")
+                exp_data3.insert(len(exp_data3.columns), 'Performance', -exp_data["SJF"])
+                datasets.append(exp_data3)
+
             exp_data.insert(len(exp_data.columns),'Condition1',condition1)
             exp_data.insert(len(exp_data.columns),'Condition2',condition2)
             exp_data.insert(len(exp_data.columns),'Performance',exp_data[performance])
@@ -113,13 +126,13 @@ def get_datasets(logdir, condition=None):
     return datasets
 
 
-def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
+def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None, other_algos=False):
     """
     For every entry in all_logdirs,
-        1) check if the entry is a real directory and if it is, 
-           pull data from it; 
+        1) check if the entry is a real directory and if it is,
+           pull data from it;
 
-        2) if not, check to see if the entry is a prefix for a 
+        2) if not, check to see if the entry is a prefix for a
            real directory, and pull data from that.
     """
     logdirs = []
@@ -157,16 +170,16 @@ def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
     data = []
     if legend:
         for log, leg in zip(logdirs, legend):
-            data += get_datasets(log, leg)
+            data += get_datasets(log, leg, other_algos)
     else:
         for log in logdirs:
-            data += get_datasets(log)
+            data += get_datasets(log, other_algos=other_algos)
     return data
 
 
-def make_plots(all_logdirs, legend=None, xaxis=None, values=None, count=False,  
-               font_scale=1.5, smooth=1, select=None, exclude=None, estimator='mean'):
-    data = get_all_datasets(all_logdirs, legend, select, exclude)
+def make_plots(all_logdirs, legend=None, xaxis=None, values=None, count=False,
+               font_scale=1.5, smooth=1, select=None, exclude=None, estimator='mean', other_algos=False):
+    data = get_all_datasets(all_logdirs, legend, select, exclude, other_algos=other_algos)
     values = values if isinstance(values, list) else [values]
     condition = 'Condition2' if count else 'Condition1'
     estimator = getattr(np, estimator)      # choose what to show on main curve: mean? max? min?
@@ -188,6 +201,7 @@ def main():
     parser.add_argument('--select', nargs='*')
     parser.add_argument('--exclude', nargs='*')
     parser.add_argument('--est', default='mean')
+    parser.add_argument('--other_algos', type=int, default=0)
     args = parser.parse_args()
     """
 
