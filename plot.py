@@ -254,7 +254,7 @@ traj_per_epoch
 
     make_plots(args.logdir, args.legend, args.xaxis, args.value, args.count, 
                smooth=args.smooth, select=args.select, exclude=args.exclude,
-               estimator=args.est)
+               estimator=args.est, other_algos=args.other_algos)
 
 if __name__ == "__main__":
     main()
