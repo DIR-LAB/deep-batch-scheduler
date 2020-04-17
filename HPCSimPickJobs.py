@@ -796,7 +796,7 @@ class HPCEnv(gym.Env):
         elif self.job_score_type == 2:
             raise NotImplementedError
         elif self.job_score_type == 3:
-            _tmp = float(job_for_scheduling.run_time*job_for_scheduling.request_number_of_processors)
+            _tmp = -float(job_for_scheduling.run_time*job_for_scheduling.request_number_of_processors)
         else:
             raise NotImplementedError
 
