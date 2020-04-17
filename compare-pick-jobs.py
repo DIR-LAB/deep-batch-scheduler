@@ -222,7 +222,7 @@ if __name__ == '__main__':
     
     # initialize the environment from scratch
     env = HPCEnv(shuffle=args.shuffle, backfil=args.backfil, skip=args.skip, job_score_type=args.score_type,
-                 batch_job_slice=args.batch_job_slice)
+                 batch_job_slice=args.batch_job_slice, build_sjf=False)
     env.my_init(workload_file=workload_file)
     env.seed(args.seed)
 

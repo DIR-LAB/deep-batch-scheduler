@@ -247,10 +247,10 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    env = HPCEnv(shuffle=shuffle, backfil=backfil, skip=skip, job_score_type=score_type, batch_job_slice=batch_job_slice)
-    env.my_init(workload_file=workload_file, sched_file=model_path)
+    env = HPCEnv(shuffle=shuffle, backfil=backfil, skip=skip, job_score_type=score_type, batch_job_slice=batch_job_slice, build_sjf=True)
     env.seed(seed)
-
+    env.my_init(workload_file=workload_file, sched_file=model_path)
+    
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape
     
