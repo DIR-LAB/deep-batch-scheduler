@@ -283,7 +283,6 @@ class HPCEnv(gym.Env):
         self.scheduled_scores = []
 
         job_sequence_size = num
-
         assert self.batch_job_slice == 0 or self.batch_job_slice>=job_sequence_size
         if self.batch_job_slice == 0:
             self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
@@ -345,7 +344,7 @@ class HPCEnv(gym.Env):
                         _j.scheduled_time = self.current_timestamp
                         _j.allocated_machines = self.cluster.allocate(_j.job_id, _j.request_number_of_processors)
                         self.running_jobs.append(_j)
-                        score = (self.job_score(_j) / self.num_job_in_batch)  # calculated reward
+                        score = self.job_score(_j)   # calculated reward
                         scheduled_logs[_j.job_id] = score
                         self.job_queue.remove(_j)  # remove the job from job queue
 
@@ -365,6 +364,23 @@ class HPCEnv(gym.Env):
                 self.cluster.release(next_resource_release_machines)
                 self.running_jobs.pop(0)  # remove the first running job
 
+    def post_process_score(self, scheduled_logs):
+        if self.job_score_type == 0:
+            for i in scheduled_logs:
+                scheduled_logs[i] /= self.num_job_in_batch
+                # bsld
+        elif self.job_score_type == 1:
+            for i in scheduled_logs:
+                scheduled_logs[i] /= self.num_job_in_batch
+                #wait time
+        elif self.job_score_type == 2:
+            raise NotImplementedError
+        elif self.job_score_type == 3:
+            total_cpu_hour = (self.current_timestamp - self.loads[self.start].submit_time)*self.loads.max_procs
+            for i in scheduled_logs:
+                scheduled_logs[i] /= total_cpu_hour
+        else:
+            raise NotImplementedError
     #@profile
     def schedule_curr_sequence_reset(self, score_fn):
         # schedule the sequence of jobs using heuristic algorithm. 
@@ -391,14 +407,14 @@ class HPCEnv(gym.Env):
             job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id,
                                                                         job_for_scheduling.request_number_of_processors)
             self.running_jobs.append(job_for_scheduling)
-            score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
+            score = self.job_score(job_for_scheduling)  # calculated reward
             scheduled_logs[job_for_scheduling.job_id] = score
             self.job_queue.remove(job_for_scheduling)
 
             not_empty = self.moveforward_for_job()
             if not not_empty:
                 break
-
+        self.post_process_score(scheduled_logs)
         # if f:
         #     print((time.time()-start_time)/num_total, num_total)
         # reset again
@@ -630,7 +646,7 @@ class HPCEnv(gym.Env):
                     _j.scheduled_time = self.current_timestamp
                     _j.allocated_machines = self.cluster.allocate(_j.job_id, _j.request_number_of_processors)
                     self.running_jobs.append(_j)
-                    score = (self.job_score(_j) / self.num_job_in_batch)  # calculated reward
+                    score = self.job_score(_j)   # calculated reward
                     self.scheduled_rl[_j.job_id] = score
                     self.job_queue.remove(_j)  # remove the job from job queue
 
@@ -715,7 +731,7 @@ class HPCEnv(gym.Env):
         elif self.job_score_type == 2:
             raise NotImplementedError
         elif self.job_score_type == 3:
-            raise NotImplementedError
+            _tmp = float(job_for_scheduling.run_time*job_for_scheduling.request_number_of_processors)
         else:
             raise NotImplementedError
 
@@ -774,7 +790,7 @@ class HPCEnv(gym.Env):
         job_for_scheduling.scheduled_time = self.current_timestamp
         job_for_scheduling.allocated_machines = self.cluster.allocate(job_for_scheduling.job_id, job_for_scheduling.request_number_of_processors)
         self.running_jobs.append(job_for_scheduling)
-        score = (self.job_score(job_for_scheduling) / self.num_job_in_batch)  # calculated reward
+        score = self.job_score(job_for_scheduling)   # calculated reward
         self.scheduled_rl[job_for_scheduling.job_id] = score
         self.job_queue.remove(job_for_scheduling)  # remove the job from job queue
 
@@ -805,6 +821,7 @@ class HPCEnv(gym.Env):
             obs = self.build_observation()
             return [obs, 0, False, 0, 0, 0]
         else:
+            self.post_process_score(self.scheduled_rl)
             rl_total = sum(self.scheduled_rl.values())
             best_total = min(self.scheduled_scores)
             sjf = self.scheduled_scores[0]
@@ -835,6 +852,7 @@ class HPCEnv(gym.Env):
             obs = self.build_observation()
             return [obs, 0, False, None]
         else:
+            self.post_process_score(self.scheduled_rl)
             rl_total = sum(self.scheduled_rl.values())
             return [None, rl_total, True, None]
 
