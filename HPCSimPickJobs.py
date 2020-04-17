@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 8
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 256
+JOB_SEQUENCE_SIZE = 64
 SKIP_TIME = 360 # skip 60 seconds
 
 def combined_shape(length, shape=None):
@@ -104,12 +104,63 @@ class HPCEnv(gym.Env):
         self.job_score_type = job_score_type
         self.batch_job_slice = batch_job_slice
 
+        self.sjf_scores = []
+
     #@profile
     def my_init(self, workload_file = '', sched_file = ''):
         print ("loading workloads from dataset:", workload_file)
         self.loads = Workloads(workload_file)
         self.cluster = Cluster("Cluster", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
         self.penalty_job_score = JOB_SEQUENCE_SIZE * self.loads.max_exec_time / 10
+
+        #calculate SJF scores for all sample sequence and save them here
+        index = 0
+        if self.batch_job_slice == 0:
+            max_index = self.loads.size() - JOB_SEQUENCE_SIZE - 1
+        else:
+            max_index = min(self.batch_job_slice, self.loads.size()) - JOB_SEQUENCE_SIZE - 1
+        print("max index... initializing SJF Score Array", max_index)
+
+        while index <= max_index:
+            index += 1
+            if index % 100 == 0:
+                print("index", index)
+
+            self.cluster.reset()
+            self.loads.reset()
+
+            self.job_queue = []
+            self.running_jobs = []
+            self.visible_jobs = []
+            self.pairs = []
+
+            self.current_timestamp = 0
+            self.start = 0
+            self.next_arriving_job_idx = 0
+            self.last_job_in_batch = 0
+            self.num_job_in_batch = 0
+            self.scheduled_rl = {}
+            self.penalty = 0
+            self.pivot_job = False
+            self.scheduled_scores = []
+
+            job_sequence_size = JOB_SEQUENCE_SIZE
+            self.pre_workloads = []
+
+            self.start = index;
+            self.start_idx_last_reset = self.start
+            self.num_job_in_batch = job_sequence_size
+            self.last_job_in_batch = self.start + self.num_job_in_batch
+            self.current_timestamp = self.loads[self.start].submit_time
+            self.job_queue.append(self.loads[self.start])
+            self.next_arriving_job_idx = self.start + 1
+
+            if self.enable_preworkloads:
+                self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
+
+            self.sjf_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
+
+        #print(self.sjf_scores)
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -228,13 +279,18 @@ class HPCEnv(gym.Env):
 
         self.pre_workloads = []
         
-        # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
-        assert self.batch_job_slice == 0 or self.batch_job_slice>=job_sequence_size
-        if self.batch_job_slice == 0:
-            self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
-        else:
-            self.start = self.np_random.randint(job_sequence_size, (self.batch_job_slice - job_sequence_size - 1))
-        # self.start = 1208
+        done = False
+        while not done:
+            # randomly sample a sequence of jobs from workload (self.start_idx_last_reset + 1) % (self.loads.size() - 2 * job_sequence_size)
+            assert self.batch_job_slice == 0 or self.batch_job_slice>=job_sequence_size
+            if self.batch_job_slice == 0:
+                self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
+            else:
+                self.start = self.np_random.randint(job_sequence_size, (self.batch_job_slice - job_sequence_size - 1))
+
+            if self.sjf_scores[self.start] > 10 and self.sjf_scores[self.start] < 150:
+                done = True
+
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
@@ -847,15 +903,6 @@ if __name__ == '__main__':
     current_dir = os.getcwd()
     workload_file = os.path.join(current_dir, args.workload)
 
-    env = HPCEnv()
-    env.my_init(workload_file=workload_file, sched_file=workload_file)
+    env = HPCEnv(batch_job_slice=100)
     env.seed(0)
-    env.reset_for_test(2048,0)
-
-    for _ in range(1):
-        _, r = env.reset(), 0
-        while True:
-            _, r, d, _, _, _ = env.step(0)
-            if d:
-                print ("Final Reward:", r)
-                break
+    env.my_init(workload_file=workload_file, sched_file=workload_file)
