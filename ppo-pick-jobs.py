@@ -91,19 +91,15 @@ def attention(x, act_dim):
     # x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
     return x
 
-def dnn(x_ph, act_dim):
+def lenet(x_ph, act_dim):
     m = int(np.sqrt(MAX_QUEUE_SIZE))
     x = tf.reshape(x_ph, shape=[-1, m, m, JOB_FEATURES])
-    x = tf.layers.conv2d(
-            inputs=x,
-            filters=32,
-            kernel_size=[1, 1],
-            strides=1,
-            activation=tf.nn.relu
-    )
-    x = tf.reshape(x, [-1, m * m * 32])
-    for _ in range(3):
-        x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    x = tf.layers.conv2d(inputs=x, filters=32, kernel_size=[1, 1], strides=1)
+    x = tf.layers.max_pooling2d(x, [2,2], 2)
+    x = tf.layers.conv2d(inputs=x, filters=64, kernel_size=[1, 1], strides=1)
+    x = tf.layers.max_pooling2d(x, [2,2], 2)
+    x = tf.layers.flatten(x)
+    x = tf.layers.dense(x, units=64)
 
     return tf.layers.dense(
             inputs=x,
@@ -119,7 +115,7 @@ def categorical_policy(x, a, mask, action_space, attn):
     if attn:
         output_layer = attention(x, act_dim)
     else:
-        output_layer = mlp2(x, act_dim)
+        output_layer = lenet(x, act_dim)
     output_layer = output_layer+(mask-1)*1000000
     logp_all = tf.nn.log_softmax(output_layer)
 
@@ -247,7 +243,7 @@ def ppo(workload_file, model_path, ac_kwargs=dict(), seed=0,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    env = HPCEnv(shuffle=shuffle, backfil=backfil, skip=skip, job_score_type=score_type, batch_job_slice=batch_job_slice, build_sjf=True)
+    env = HPCEnv(shuffle=shuffle, backfil=backfil, skip=skip, job_score_type=score_type, batch_job_slice=batch_job_slice, build_sjf=False)
     env.seed(seed)
     env.my_init(workload_file=workload_file, sched_file=model_path)
     
