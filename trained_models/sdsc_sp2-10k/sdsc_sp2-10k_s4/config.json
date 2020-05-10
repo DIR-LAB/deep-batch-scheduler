@@ -1,0 +1,46 @@
+{
+    "ac_kwargs":	{},
+    "attn":	0,
+    "backfil":	0,
+    "batch_job_slice":	10000,
+    "clip_ratio":	0.2,
+    "epochs":	4000,
+    "exp_name":	"sdsc_sp2-10k",
+    "gamma":	1,
+    "lam":	0.97,
+    "logger":	{
+        "<spinup.utils.logx.EpochLogger object at 0x7fed80082b10>":	{
+            "epoch_dict":	{},
+            "exp_name":	"sdsc_sp2-10k",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"/users/dzhang16/deep-batch-scheduler/./data/logs/sdsc_sp2-10k/sdsc_sp2-10k_s4",
+            "output_file":	{
+                "<_io.TextIOWrapper name='/users/dzhang16/deep-batch-scheduler/./data/logs/sdsc_sp2-10k/sdsc_sp2-10k_s4/progress.txt' mode='w' encoding='UTF-8'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"sdsc_sp2-10k",
+        "output_dir":	"/users/dzhang16/deep-batch-scheduler/./data/logs/sdsc_sp2-10k/sdsc_sp2-10k_s4"
+    },
+    "max_ep_len":	1000,
+    "model_path":	"./data/lublin_256.schd",
+    "pi_lr":	0.0003,
+    "pre_trained":	0,
+    "save_freq":	10,
+    "score_type":	0,
+    "seed":	4,
+    "shuffle":	0,
+    "skip":	0,
+    "target_kl":	0.01,
+    "train_pi_iters":	80,
+    "train_v_iters":	80,
+    "trained_model":	null,
+    "traj_per_epoch":	100,
+    "vf_lr":	0.001,
+    "workload_file":	"/users/dzhang16/deep-batch-scheduler/data/SDSC-SP2-1998-4.2-cln.swf"
+}

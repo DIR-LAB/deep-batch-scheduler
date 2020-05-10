@@ -91,6 +91,9 @@ class Job:
     def __eq__(self, other):
         return self.job_id == other.job_id
 
+    def __lt__(self, other):
+        return self.job_id < other.job_id
+
     def __str__(self):
         return "J["+str(self.job_id)+"]-["+str(self.request_number_of_processors)+"]-["+str(self.submit_time)+"]-["+str(self.request_time)+"]"
     def __feature__(self):
