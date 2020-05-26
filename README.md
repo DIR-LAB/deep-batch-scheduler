@@ -18,32 +18,24 @@ sudo apt-get install python3.7
 sudo apt-get install openmpi-bin openmpi-doc libopenmpi-dev
 ```
 
-* Tensorflow
+* Virtualenv
 ```bash
 sudo apt install python3.7-dev python3-pip
 sudo pip3 install -U virtualenv
 virtualenv --system-site-packages -p python3.7 ./venv
 source ./venv/bin/activate  # sh, bash, ksh, or zsh
 pip install --upgrade pip
-pip install --upgrade tensorflow==1.14
 ```
 
-### Install GYM
-
-```bash
-git clone https://github.com/openai/gym.git
-pip install -e ./gym
-```
-
-### Install SpinningUp
-```bash
-git clone https://github.com/openai/spinningup.git
-pip install -e ./spinningup
-```
-
-### Install Deep Batch Scheduler
+### Clone Deep Batch Scheduler
 ```bash
 git clone https://github.com/DIR-LAB/deep-batch-scheduler.git
+```
+
+### Install Dependencies
+```shell script
+cd deep-batch-scheduler
+pip install -r requirements.txt
 ```
 
 ### File Structure

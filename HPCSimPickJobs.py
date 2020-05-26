@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 8
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 512
+JOB_SEQUENCE_SIZE = 256
 SKIP_TIME = 360 # skip 60 seconds
 
 def combined_shape(length, shape=None):
