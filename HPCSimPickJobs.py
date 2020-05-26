@@ -114,7 +114,7 @@ class HPCEnv(gym.Env):
         self.cluster = Cluster("Cluster", self.loads.max_nodes, self.loads.max_procs/self.loads.max_nodes)
         self.penalty_job_score = JOB_SEQUENCE_SIZE * self.loads.max_exec_time / 10
 
-        if self.build_sjf:
+        if self.build_sjf: #this is for trajectory filtering.
             #calculate SJF scores for all sample sequence and save them here
             index = 0
             if self.batch_job_slice == 0:
