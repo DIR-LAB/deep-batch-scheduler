@@ -18,7 +18,7 @@ from gym import spaces
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
 
-MAX_QUEUE_SIZE = 256
+MAX_QUEUE_SIZE = 128
 MLP_SIZE = 256
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
@@ -28,7 +28,7 @@ MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 JOB_FEATURES = 8
 DEBUG = False
 
-JOB_SEQUENCE_SIZE = 256
+JOB_SEQUENCE_SIZE = 512
 SKIP_TIME = 360 # skip 60 seconds
 
 def combined_shape(length, shape=None):
@@ -431,19 +431,24 @@ class HPCEnv(gym.Env):
 
     def post_process_score(self, scheduled_logs):
         if self.job_score_type == 0:
+            # bsld
             for i in scheduled_logs:
                 scheduled_logs[i] /= self.num_job_in_batch
-                # bsld
         elif self.job_score_type == 1:
+            # wait time
             for i in scheduled_logs:
                 scheduled_logs[i] /= self.num_job_in_batch
-                #wait time
         elif self.job_score_type == 2:
-            raise NotImplementedError
+            # turnaround time
+            for i in scheduled_logs:
+                scheduled_logs[i] /= self.num_job_in_batch
         elif self.job_score_type == 3:
             total_cpu_hour = (self.current_timestamp - self.loads[self.start].submit_time)*self.loads.max_procs
             for i in scheduled_logs:
                 scheduled_logs[i] /= total_cpu_hour
+        elif self.job_score_type == 4:
+            for i in scheduled_logs:
+                scheduled_logs[i] /= self.num_job_in_batch
         else:
             raise NotImplementedError
     #@profile
@@ -784,7 +789,7 @@ class HPCEnv(gym.Env):
     def job_score(self, job_for_scheduling):
 
         # 0: Average bounded slowdown, 1: Average waiting time
-        # 2: Average turnaround time, 3: Resource utilization
+        # 2: Average turnaround time, 3: Resource utilization 4: Average slowdown
         if self.job_score_type == 0:
             # bsld
             _tmp = max(1.0, (float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
@@ -794,9 +799,15 @@ class HPCEnv(gym.Env):
             #wait time
             _tmp = float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time)
         elif self.job_score_type == 2:
-            raise NotImplementedError
+            # turnaround time
+            _tmp = float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)
         elif self.job_score_type == 3:
+            # utilization
             _tmp = -float(job_for_scheduling.run_time*job_for_scheduling.request_number_of_processors)
+        elif self.job_score_type == 4:
+            # sld
+            _tmp = float(job_for_scheduling.scheduled_time - job_for_scheduling.submit_time + job_for_scheduling.run_time)\
+                /job_for_scheduling.run_time
         else:
             raise NotImplementedError
 
