@@ -31,7 +31,7 @@ def load_policy(model_path, itr='last'):
     get_v = lambda x : sess.run(v, feed_dict={model['x']: x.reshape(-1, MAX_QUEUE_SIZE * JOB_FEATURES)})
     return get_probs, get_v
 
-def mlp3(x, act_dim):
+def critic_mlp(x, act_dim):
     x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
@@ -42,34 +42,36 @@ def mlp3(x, act_dim):
     x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
 
     return tf.layers.dense(x, units=act_dim)
-def mlp(x, act_dim):
-    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE, JOB_FEATURES])
+
+def mlp_v1(x, act_dim):
+    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE*JOB_FEATURES])
+    x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
+    return tf.layers.dense(x, units=act_dim)
+
+def mlp_v2(x, act_dim):
+    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE*JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
-    x = tf.squeeze(tf.layers.dense(x, units=1), axis=-1)
-    x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
-    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
-    x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
-
     return tf.layers.dense(x, units=act_dim)
-def mlp2(x, act_dim):
+
+def mlp_v3(x, act_dim):
+    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE*JOB_FEATURES])
+    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
+    return tf.layers.dense(x, units=act_dim)
+
+def rl_kernel(x, act_dim):
     x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE, JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
-    # q = tf.layers.dense(x, units=32, activation=tf.nn.relu)
-    # k = tf.layers.dense(x, units=32, activation=tf.nn.relu)
-    # v = tf.layers.dense(x, units=32, activation=tf.nn.relu)
-    # score = tf.matmul(q,tf.transpose(k,[0,2,1]))
-    # score = tf.nn.softmax(score,-1)
-    # attn = tf.reshape(score,(-1, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE))
-    # x = tf.matmul(attn, v)
     x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
-
     x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
     x = tf.squeeze(tf.layers.dense(x, units=1), axis=-1)
-   # x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
-   # x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
-   # x = tf.layers.dense(x, units=64, activation=tf.nn.relu)
     return x
 
 def attention(x, act_dim):
@@ -115,7 +117,7 @@ def categorical_policy(x, a, mask, action_space, attn):
     if attn:
         output_layer = attention(x, act_dim)
     else:
-        output_layer = lenet(x, act_dim)
+        output_layer = rl_kernel(x, act_dim)
     output_layer = output_layer+(mask-1)*1000000
     logp_all = tf.nn.log_softmax(output_layer)
 
@@ -131,7 +133,7 @@ def actor_critic(x, a, mask, action_space=None, attn=False):
     with tf.variable_scope('pi'):
         pi, logp, logp_pi , out= categorical_policy(x, a, mask, action_space, attn)
     with tf.variable_scope('v'):
-        v = tf.squeeze(mlp3(x, 1), axis=1)
+        v = tf.squeeze(critic_mlp(x, 1), axis=1)
     return pi, logp, logp_pi, v, out
 
 class PPOBuffer:
