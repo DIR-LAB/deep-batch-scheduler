@@ -141,10 +141,12 @@ class Workloads:
                 if j.executable_number > self.max_executable_number:
                     self.max_executable_number = j.executable_number
 
-                self.all_jobs.append(j)
+                # filter those illegal data whose runtime < 0
+                if j.run_time > 0:
+                    self.all_jobs.append(j)
                 
-                if j.request_number_of_processors > self.max:
-                    self.max = j.request_number_of_processors
+                    if j.request_number_of_processors > self.max:
+                        self.max = j.request_number_of_processors
 
         # if max_procs = 0, it means node/proc are the same.
         if self.max_procs == 0:
