@@ -1,20 +1,17 @@
 # Trained Models
 
-Models:
-
-lublin256-nobackfil 
-
-Lublin256new-nobackfil-8features 
-
-hpc2n-10k 
-
-sdsc_sp2-10k
+In this folder, we load some example trained models. They are:
+* lublin256: synthetic trace generated based on Lublin model
+* Lublin256new: another synthentic trace generated based on Lublin model
+* hpc2n: real-world workloads from SWF archive
+* sdsc_sp2: real-world workload from SWF archive
+Note that, all these models were trained based on average bounded job slowdown.
 
 
+# Model Performance
+We summarize the performance of these models in training and actually scheduling the jobs.
 
-# Model Performance on different seeds and sequence length
-
-| Models                                  | lublin256-nobackfil                      | Lublin256new-nobackfil-8features            | hpc2n-10k                            | sdsc_sp2-10k                            |
+| Models                                  | lublin256                      | Lublin256new            | hpc2n                            | sdsc_sp2                            |
 |-----------------------------------------|------------------------------------------|---------------------------------------------|--------------------------------------|-----------------------------------------|
 | Training curve                          | ![alt](resources/lublin256_training.png) | ![alt](resources/lublin256new_training.png) | ![alt](resources/hpc2n_training.png) | ![alt](resources/sdsc-sp2_training.png) |
 | Testing sequence=1024, with backfilling | ![alt](resources/lublin256_1024.png)     | ![alt](resources/lublin256new_1024.png)     | ![alt](resources/hpc2n_1024.png)     | ![alt](resources/sdsc-sp2_1024.png)     |
