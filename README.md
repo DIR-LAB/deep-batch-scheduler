@@ -83,3 +83,26 @@ There are many parameters you can use:
 * `--iter`, how many iterations for the testing
 * `--backfil`, enable/disable backfilling during the test
 * `--score_type`, specify the scheduling metrics. [0]：bounded job slowdown；[1]: job waiting time; [2]: job response time; [3] system resource utilization.
+
+## Step-By-Step Example
+
+Here, we give a step-by-step example to show the complete training/monitoring/testing workflow of RLScheduler.
+
+* Step 1: Train a model using Lublin_256 data trace and name the experiment as lublin256-seed0 
+```bash
+python ppo-pick-jobs.py --workload "./data/lublin_256.swf" --exp_name lublin256-seed0 --trajs 500 --seed 0
+```
+
+* Step 2: Monitor the training by checking the training curves
+```bash
+python plot.py .\data\logs\lublin256-seed0 -x Epoch -s 1
+```
+It will output something like this:
+![alt](trained_models/resources/lublin256_training.png)
+
+* Step 3: Schedule 10 randomly sampled job sequence from the job trace
+```bash
+python compare-pick-jobs.py --rlmodel "./data/logs/lublin256-seed0/lublin256-seed0_s0/" --workload "./data/lublin_256.swf --seed 1 --len 1024 --iter 10"
+```
+It will output something like this:
+![alt](trained_models/resources/lublin256_1024.png)
