@@ -98,11 +98,16 @@ python ppo-pick-jobs.py --workload "./data/lublin_256.swf" --exp_name lublin256-
 python plot.py .\data\logs\lublin256-seed0 -x Epoch -s 1
 ```
 It will output something like this:
-![alt](trained_models/resources/lublin256_training.png)
+<figure>
+	<img align="middle" src="https://github.com/DIR-LAB/deep-batch-scheduler/blob/master/trained_models/resources/lublin256_training_epoch.png" alt="Lublin256 Training Curve"/ width="400">
+</figure>
 
 * Step 3: Schedule 10 randomly sampled job sequence from the job trace
 ```bash
 python compare-pick-jobs.py --rlmodel "./data/logs/lublin256-seed0/lublin256-seed0_s0/" --workload "./data/lublin_256.swf --seed 1 --len 1024 --iter 10"
 ```
 It will output something like this:
-![alt](trained_models/resources/lublin256_1024.png)
+<figure>
+	<img align="middle" src="https://github.com/DIR-LAB/deep-batch-scheduler/blob/master/trained_models/resources/lublin256_1024.png" alt="Lublin256 Training Curve"/ width="400">
+</figure>
+
