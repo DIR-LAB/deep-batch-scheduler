@@ -142,6 +142,8 @@ class Workloads:
                     self.max_executable_number = j.executable_number
 
                 # filter those illegal data whose runtime < 0
+                if j.run_time < 0:
+                    j.run_time = 10
                 if j.run_time > 0:
                     self.all_jobs.append(j)
                 
