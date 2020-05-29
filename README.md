@@ -84,7 +84,7 @@ There are many parameters you can use:
 * `--backfil`, enable/disable backfilling during the test
 * `--score_type`, specify the scheduling metrics. [0]：bounded job slowdown；[1]: job waiting time; [2]: job response time; [3] system resource utilization.
 
-## Step-By-Step Example
+## A Step-By-Step Example
 
 Here, we give a step-by-step example to show the complete training/monitoring/testing workflow of RLScheduler.
 
@@ -92,6 +92,7 @@ Here, we give a step-by-step example to show the complete training/monitoring/te
 ```bash
 python ppo-pick-jobs.py --workload "./data/lublin_256.swf" --exp_name lublin256-seed0 --trajs 500 --seed 0
 ```
+In this experiment, we have `seed=0`, collect 500 trajectories in each epoch, and optimize average bounded slowdown. 
 
 * Step 2: Monitor the training by checking the training curves
 ```bash
@@ -106,8 +107,8 @@ It will output something like this:
 ```bash
 python compare-pick-jobs.py --rlmodel "./data/logs/lublin256-seed0/lublin256-seed0_s0/" --workload "./data/lublin_256.swf --seed 1 --len 1024 --iter 10"
 ```
-It will output something like this:
+In this scheduling case, we randomly select 10 job sequences using `seed=1`. It will output something like this for comparing different scheduling results:
 <figure>
 	<img align="middle" src="https://github.com/DIR-LAB/deep-batch-scheduler/blob/master/trained_models/resources/lublin256_1024.png" alt="Lublin256 Training Curve"/ width="400">
 </figure>
-
+We use the average to produce the performance tables in the paper.
