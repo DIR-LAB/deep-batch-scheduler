@@ -44,21 +44,21 @@ def critic_mlp(x, act_dim):
     return tf.layers.dense(x, units=act_dim)
 
 def mlp_v1(x, act_dim):
-    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE*JOB_FEATURES])
+    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE*JOB_FEATURES])
     x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=128, activation=tf.nn.relu)
     return tf.layers.dense(x, units=act_dim)
 
 def mlp_v2(x, act_dim):
-    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE*JOB_FEATURES])
+    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE*JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=16, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=8, activation=tf.nn.relu)
     return tf.layers.dense(x, units=act_dim)
 
 def mlp_v3(x, act_dim):
-    x = tf.reshape(x, shape=[-1,JOB_SEQUENCE_SIZE*JOB_FEATURES])
+    x = tf.reshape(x, shape=[-1,MAX_QUEUE_SIZE*JOB_FEATURES])
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
     x = tf.layers.dense(x, units=32, activation=tf.nn.relu)
