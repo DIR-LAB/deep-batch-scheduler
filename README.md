@@ -3,6 +3,8 @@ This repo includes the deep batch scheduler source code and necessary datasets t
 
 The code has been tested on Ubuntu 18.04/16.04 with Tensorflow 1.14 and SpinningUp 0.2. Newer version of Tensorflow (such as 2.x) does not work because of the new APIs. Windows 10 should be OK to run the code, only the installation of the dependencies (such as Gym environment and SpinningUp could be bumpy).
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3879814.svg)](https://doi.org/10.5281/zenodo.3879814)
+
 ## Installation
 
 ### Required Software
