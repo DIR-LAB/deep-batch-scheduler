@@ -4,7 +4,6 @@
 .idea/*
 *.*~
 __pycache__/*
-*.pkl
 **/*.egg-info
 .python-version
 data/logs
