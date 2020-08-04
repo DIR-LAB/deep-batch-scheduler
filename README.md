@@ -107,7 +107,7 @@ It will output something like this:
 
 * Step 3: Schedule 10 randomly sampled job sequence from the job trace
 ```bash
-python compare-pick-jobs.py --rlmodel "./data/logs/lublin256-seed0/lublin256-seed0_s0/" --workload "./data/lublin_256.swf --seed 1 --len 1024 --iter 10"
+python compare-pick-jobs.py --rlmodel "./data/logs/lublin256-seed0/lublin256-seed0_s0/" --workload "./data/lublin_256.swf" --seed 1 --len 1024 --iter 10
 ```
 In this scheduling case, we randomly select 10 job sequences using `seed=1`. It will output something like this for comparing different scheduling results:
 <figure>
