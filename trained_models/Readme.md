@@ -1,11 +1,19 @@
 # Trained Models
 
 In this folder, we load some example trained models. They are:
-* lublin256: synthetic trace generated based on Lublin model
-* Lublin256new: another synthentic trace generated based on Lublin model
-* hpc2n: real-world workloads from SWF archive
-* sdsc_sp2: real-world workload from SWF archive
-Note that, all these models were trained based on average bounded job slowdown.
+* bsld/lublin256: synthetic trace generated based on Lublin model
+* bsld/Lublin256new: another synthentic trace generated based on Lublin model
+* bsld/hpc2n: real-world workloads from SWF archive
+* bsld/sdsc_sp2: real-world workload from SWF archive
+
+Note that, these models were trained based on average bounded job slowdown.
+
+* utilization/lublin256: synthetic trace generated based on Lublin model
+* utilization/Lublin256new: another synthentic trace generated based on Lublin model
+* utilization/hpc2n: real-world workloads from SWF archive
+* utilization/sdsc_sp2: real-world workload from SWF archive
+
+Note that, these models were trained based on resource utilization.
 
 
 # Model Performance

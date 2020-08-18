@@ -114,3 +114,16 @@ In this scheduling case, we randomly select 10 job sequences using `seed=1`. It 
 	<img align="middle" src="https://github.com/DIR-LAB/deep-batch-scheduler/blob/master/trained_models/resources/lublin256_1024.png" alt="Lublin256 Training Curve"/ width="400">
 </figure>
 We use the average to produce the performance tables in the paper.
+
+And we provide a script and trained models to reproduce the performance tables in the paper.
+
+For the average bounded slowdown performance table:
+```shell script
+python make_table_script.py --score_type "bsld"
+```
+
+For the resource utilization performance table:
+
+```shell script
+python make_table_script.py --score_type "utilization"
+```
