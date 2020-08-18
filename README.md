@@ -51,7 +51,7 @@ HPCSimPickJobs.py: SchedGym Environment.
 ppo-pick-jobs.py: Train RLScheduler using PPO algorithm.
 ```
 
-To change the hyper-parameters, such as `MAX_OBSV_SIZE` or the trajectory length during training, you can change them in HPCSimPickJobs.py. You can also change to different neural networks (MLP and LeNet) in HPCSimPickJob.py. More details about the changes will be offered as standalone wiki page.
+To change the hyper-parameters, such as `MAX_OBSV_SIZE` or the trajectory length during training, you can change them in HPCSimPickJobs.py. You can also change to different neural networks (MLP and LeNet) in HPCSimPickJob.py. 
 
 ### Training
 To train a RL model based on a job trace, run this command:
@@ -98,7 +98,7 @@ In this experiment, we have `seed=0`, collect 500 trajectories in each epoch, an
 
 * Step 2: Monitor the training by checking the training curves
 ```bash
-python plot.py .\data\logs\lublin256-seed0 -x Epoch -s 1
+python plot.py ./data/logs/lublin256-seed0 -x Epoch -s 1
 ```
 It will output something like this:
 <figure>
@@ -115,15 +115,16 @@ In this scheduling case, we randomly select 10 job sequences using `seed=1`. It 
 </figure>
 We use the average to produce the performance tables in the paper.
 
-And we provide a script and trained models to reproduce the performance tables in the paper.
+## Reproduce Results in Paper
 
-For the average bounded slowdown performance table:
+We provide the script and several trained models to help reproduce the key results shown in the paper, particularly Table V and Table VI. 
+
+### Results of Scheduling Towards average bounded slowdown
 ```shell script
 python make_table_script.py --score_type "bsld"
 ```
 
-For the resource utilization performance table:
-
+### Results of Scheduling Towards resource utilization
 ```shell script
 python make_table_script.py --score_type "utilization"
 ```
