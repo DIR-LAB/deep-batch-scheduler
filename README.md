@@ -154,3 +154,9 @@ python make_table_script.py --score_type "utilization"
 | SDSC-SP2            | 0.682 | 0.681 | 0.706 | 0.661 | 0.677 | **0.707** |
 | HPC2N               | 0.639 | 0.637 | 0.638 | 0.641 | 0.638 | **0.642** |
 | Lublin-2            | 0.587 | 0.583 | 0.587 | 0.593 | 0.552 | **0.593** |
+
+
+## Fairness
+
+We put the code associated with fairness in these files: `HPCEnvFair.py, rl-fair.py, compare-fair.py` which are the
+counterparts of `HPCSimPickJobs.py, ppo-pick-jobs.py, compare-pick-jobs.py`. You can train, monitor and test similarly.
