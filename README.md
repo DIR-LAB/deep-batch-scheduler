@@ -5,7 +5,7 @@ The code has been tested on Ubuntu 18.04/16.04 with Tensorflow 1.14 and Spinning
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4009286.svg)](https://doi.org/10.5281/zenodo.4009286)
 
-# Citing RLScheduler
+## Citing RLScheduler
 The relevant research paper has been published at SC20. If you reference or use RLScheduler in your research, please cite:
 
 ```
