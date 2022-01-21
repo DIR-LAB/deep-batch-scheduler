@@ -15,7 +15,7 @@ grpcio==1.23.0
 -e git+https://github.com/openai/gym.git@ff4664bd24fa95bbfa1f7682c0723f88a5c6aa3b#egg=gym
 h5py==2.9.0
 importlib-metadata==0.19
-ipython==7.7.0
+ipython==7.16.3
 ipython-genutils==0.2.0
 jedi==0.15.1
 joblib==0.13.2
