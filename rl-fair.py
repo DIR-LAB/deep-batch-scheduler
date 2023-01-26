@@ -1,16 +1,12 @@
-import numpy as np
-import tensorflow as tf
-import gym
-import os
-import sys
-import time
-from spinup.utils.logx import EpochLogger
-from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
-from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
 from spinup.utils.logx import restore_tf_graph
-import os.path as osp
-
+from spinup.utils.mpi_tools import mpi_avg
+from spinup.utils.logx import EpochLogger
 from HPCEnvFair import *
+import tensorflow as tf
+import os.path as osp
+import numpy as np
+import os
+import time
 
 
 def load_policy(model_path, itr='last'):

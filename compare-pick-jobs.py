@@ -1,16 +1,16 @@
-import time
-import os
-import os.path as osp
-import tensorflow as tf
 from spinup.utils.logx import restore_tf_graph
-import math
-import numpy as np
-
-from HPCSimPickJobs import *
-
 import matplotlib.pyplot as plt
+from HPCSimPickJobs import *
+import tensorflow as tf
+import os.path as osp
+import numpy as np
+import time
+import math
+import os
+
 plt.rcdefaults()
 tf.enable_eager_execution()
+
 
 def load_policy(model_path, itr='last'):
     # handle which epoch to load from

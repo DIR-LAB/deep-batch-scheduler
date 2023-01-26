@@ -1,27 +1,19 @@
+from gym.spaces import Box, Discrete
 from job import Job, Workloads
-from cluster import Cluster
-
-import os
-import math
-import json
-import time
-import sys
-import random
-from random import shuffle
+from gym.utils import seeding
+from gym import spaces, Env
 from statistics import mean
-
-import numpy as np
+from cluster import Cluster
+from random import shuffle
 import tensorflow as tf
 import scipy.signal
-
-import gym
-from gym import spaces
-from gym.spaces import Box, Discrete
-from gym.utils import seeding
+import numpy as np
+import random
+import sys
+import os
 
 MAX_QUEUE_SIZE = 128
 MLP_SIZE = 128
-
 MAX_WAIT_TIME = 12 * 60 * 60  # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60  # assume maximal runtime is 12 hours
 
@@ -81,7 +73,7 @@ def discount_cumsum(x, discount):
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
-class HPCEnvFair(gym.Env):
+class HPCEnvFair(Env):
     def __init__(self, shuffle=False, backfil=False, skip=False, job_score_type=0, user_score_type=0, batch_job_slice=0,
                  build_sjf=False):  # do nothing and return. A workaround for passing parameters to the environment
         super(HPCEnvFair, self).__init__()
