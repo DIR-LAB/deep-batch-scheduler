@@ -1,22 +1,14 @@
 from job import Job, Workloads
 from cluster import Cluster
-
-import os
-import math
-import json
-import time
-import sys
-import random
-from random import shuffle
-
-import numpy as np
 import tensorflow as tf
 import scipy.signal
-
-import gym
-from gym import spaces
+import numpy as np
+import random
+import sys
+import os
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
+from gym import spaces, Env
 
 MAX_QUEUE_SIZE = 128
 MLP_SIZE = 256
@@ -63,7 +55,7 @@ def discount_cumsum(x, discount):
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
-class HPCEnv(gym.Env):
+class HPCEnv(Env):
     def __init__(self,shuffle=False, backfil=False, skip=False, job_score_type=0, batch_job_slice=0, build_sjf=False):  # do nothing and return. A workaround for passing parameters to the environment
         super(HPCEnv, self).__init__()
         print("Initialize Simple HPC Env")
@@ -573,7 +565,7 @@ class HPCEnv(gym.Env):
             visible_random = []
             random_index = 0
             shuffled = list(self.job_queue)
-            shuffle(shuffled)
+            random.shuffle(shuffled)
             for i in range(0, MAX_QUEUE_SIZE):
                 visible_random.append(shuffled[i])
 

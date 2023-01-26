@@ -1,15 +1,13 @@
 import numpy as np
 import tensorflow as tf
-import gym
 import os
-import sys
 import time
 from spinup.utils.logx import EpochLogger
-from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_all_params
-from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
+from spinup.utils.mpi_tools import mpi_avg
 from spinup.utils.logx import restore_tf_graph
 import os.path as osp
 from HPCSimPickJobs import *
+
 def load_policy(model_path, itr='last'):
     # handle which epoch to load from
     if itr=='last':
