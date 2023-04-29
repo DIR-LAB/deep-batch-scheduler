@@ -1,16 +1,17 @@
-import seaborn as sns
-import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+import os.path as osp
+import pandas as pd
+import numpy as np
 import json
 import os
-import os.path as osp
-import numpy as np
 
 DIV_LINE_WIDTH = 50
 
 # Global vars for tracking and labeling data at load time.
 exp_idx = 0
 units = dict()
+
 
 def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1", smooth=1, **kwargs):
     if smooth > 1:

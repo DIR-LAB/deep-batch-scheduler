@@ -6,10 +6,6 @@ import numpy as np
 import time
 import math
 import os
-import tensorflow as tf
-from spinup.utils.logx import restore_tf_graph
-
-
 plt.rcdefaults()
 tf.enable_eager_execution()
 

@@ -54,10 +54,12 @@ tensorboard==1.14.0
 tensorflow==1.14.0
 tensorflow-estimator==1.14.0
 termcolor==1.1.0
-torch==1.4.0
+torch>=1.4.0
 tqdm==4.34.0
 traitlets==4.3.2
 wcwidth==0.1.7
 Werkzeug==0.15.5
 wrapt==1.11.2
 zipp==0.5.2
+stable-baselines>=2.10.0
+

@@ -1,6 +1,5 @@
 from job import Job, Workloads
 from cluster import Cluster
-import tensorflow as tf
 import scipy.signal
 import numpy as np
 import random
@@ -9,6 +8,7 @@ import os
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
 from gym import spaces, Env
+import argparse
 
 MAX_QUEUE_SIZE = 128
 MLP_SIZE = 256
@@ -28,40 +28,17 @@ def combined_shape(length, shape=None):
         return (length,)
     return (length, shape) if np.isscalar(shape) else (length, *shape)
 
-def placeholder(dim=None):
-    return tf.placeholder(dtype=tf.float32, shape=combined_shape(None,dim))
-
-def placeholders(*args):
-    return [placeholder(dim) for dim in args]
-
-def placeholder_from_space(space):
-    if isinstance(space, Box):
-        return placeholder(space.shape)
-    elif isinstance(space, Discrete):
-        return tf.placeholder(dtype=tf.int32, shape=(None,))
-    raise NotImplementedError
-
-def placeholders_from_spaces(*args):
-    return [placeholder_from_space(space) for space in args]
-
-def get_vars(scope=''):
-    return [x for x in tf.trainable_variables() if scope in x.name]
-
-def count_vars(scope=''):
-    v = get_vars(scope)
-    return sum([np.prod(var.shape.as_list()) for var in v])
-
 def discount_cumsum(x, discount):
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
 class HPCEnv(Env):
-    def __init__(self,shuffle=False, backfil=False, skip=False, job_score_type=0, batch_job_slice=0, build_sjf=False):  # do nothing and return. A workaround for passing parameters to the environment
+    def __init__(self,shuffle=False, backfil=False, skip=False, job_score_type=0, batch_job_slice=0, build_sjf=False): 
         super(HPCEnv, self).__init__()
         print("Initialize Simple HPC Env")
 
-        self.action_space = spaces.Discrete(MAX_QUEUE_SIZE)
-        self.observation_space = spaces.Box(low=0.0, high=1.0,
+        self.action_space = Discrete(MAX_QUEUE_SIZE)
+        self.observation_space = Box(low=0.0, high=1.0,
                                             shape=(JOB_FEATURES * MAX_QUEUE_SIZE,),
                                             dtype=np.float32)
 
@@ -141,7 +118,7 @@ class HPCEnv(Env):
                 job_sequence_size = JOB_SEQUENCE_SIZE
                 self.pre_workloads = []
 
-                self.start = index;
+                self.start = index
                 self.start_idx_last_reset = self.start
                 self.num_job_in_batch = job_sequence_size
                 self.last_job_in_batch = self.start + self.num_job_in_batch
@@ -299,6 +276,8 @@ class HPCEnv(Env):
         self.job_queue.append(self.loads[self.start])
         self.next_arriving_job_idx = self.start + 1
 
+
+
         if self.enable_preworkloads:
             self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
 
@@ -310,17 +289,9 @@ class HPCEnv(Env):
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
         #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
 
-        return self.build_observation(), self.build_critic_observation()
-        
-        #print(np.mean(self.scheduled_scores))
-        '''
-        if (np.mean(self.scheduled_scores) > 5):
-            return self.build_observation()
-        else:
-            return self.reset()
-        '''
+        return self.build_observation()
 
-    def reset_for_test(self, num,start):
+    def reset_for_test(self, num, start):
         self.cluster.reset()
         self.loads.reset()
 
@@ -598,23 +569,6 @@ class HPCEnv(Env):
                     self.visible_jobs.append(random_job)
                     index += 1
 
-
-        '''
-        @ddai: OPTIMIZE_OBSV. This time, we calculate the earliest start time of each job and expose that to the RL agent.
-        if it is 0, then the job can start now, if it is near 1, that means it will have to wait for a really long time to start.
-        The earliest start time is calculated based on current resources and the running jobs. It assumes no more jobs will be scheduled.
-
-        # calculate the free resources at each outstanding ts
-        free_processors_pair = []
-        free_processors = (self.cluster.free_node * self.cluster.num_procs_per_node)
-        free_processors_pair.append((free_processors, 0))
-
-        self.running_jobs.sort(key=lambda running_job: (running_job.scheduled_time + running_job.run_time))
-        for rj in self.running_jobs:
-            free_processors += rj.request_number_of_processors
-            free_processors_pair.append((free_processors, (rj.scheduled_time + rj.run_time - self.current_timestamp)))
-        '''
-
         self.pairs = []
         add_skip = False
         for i in range(0, MAX_QUEUE_SIZE):
@@ -630,16 +584,6 @@ class HPCEnv(Env):
                 normalized_wait_time = min(float(wait_time) / float(MAX_WAIT_TIME), 1.0 - 1e-5)
                 normalized_run_time = min(float(request_time) / float(self.loads.max_exec_time), 1.0 - 1e-5)
                 normalized_request_nodes = min(float(request_processors) / float(self.loads.max_procs),  1.0 - 1e-5)
-
-                '''
-                @ddai: part 2 of OPTIMIZE_OBSV
-                earliest_start_time = 1
-                for fp, ts in free_processors_pair:
-                    if request_processors < fp:
-                        earliest_start_time = ts
-                        break
-                normalized_earliest_start_time = min(float(earliest_start_time) / float(MAX_WAIT_TIME), 1.0 - 1e-5)
-                '''
 
                 # add extra parameters, include "Requested Memory", "User Id", "Groupd Id", "Exectuable Id", if its value does not exist in the trace (-1), we set it to 1 by default.
                 if job.request_memory == -1:
@@ -680,7 +624,7 @@ class HPCEnv(Env):
         for i in range(0, MAX_QUEUE_SIZE):
             vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
 
-        return vector
+        return np.array(vector, dtype=np.float32)
 
     #@profile
     def moveforward_for_resources_backfill(self, job):
@@ -887,7 +831,7 @@ class HPCEnv(Env):
 
         if not done:
             obs = self.build_observation()
-            return [obs, 0, False, 0, 0, 0]
+            return [obs, 0, False, {'best_total': 0, 'rl_total': 0, 'sjf': 0, 'f1': 0, 'rwd2': 0}]
         else:
             self.post_process_score(self.scheduled_rl)
             rl_total = sum(self.scheduled_rl.values())
@@ -904,7 +848,7 @@ class HPCEnv(Env):
             else:
                 rwd = 1    
             '''
-            return [None, rwd, True, rwd2, sjf, f1]
+            return [None, rwd, True, {'best_total': best_total, 'rl_total': rl_total, 'sjf': sjf, 'f1': f1, 'rwd2': rwd2}]
     
     def step_for_test(self, a):
         job_for_scheduling = self.pairs[a][0]
@@ -925,8 +869,6 @@ class HPCEnv(Env):
             return [None, rl_total, True, None]
 
 if __name__ == '__main__':
-    import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')  # RICC-2010-2
     args = parser.parse_args()

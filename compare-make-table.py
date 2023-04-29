@@ -1,20 +1,16 @@
-import time
-import joblib
-import os
-import os.path as osp
-import tensorflow as tf
-from spinup import EpochLogger
 from spinup.utils.logx import restore_tf_graph
 from tensorflow.python.util import deprecation
+from HPCSimPickJobs import *
+import tensorflow as tf
+import os.path as osp
+import logging
+import time
+import os
+
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 deprecation._PRINT_DEPRECATION_WARNINGS = False
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import logging
 logging.getLogger('tensorflow').disabled = True
-
-
-from HPCSimPickJobs import *
-
 tf.enable_eager_execution()
 
 
