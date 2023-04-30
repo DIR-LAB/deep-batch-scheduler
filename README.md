@@ -4,6 +4,13 @@ This repo includes the deep batch scheduler source code and necessary datasets t
 The code has been tested on Ubuntu 18.04/16.04 with Tensorflow 1.14 and SpinningUp 0.2. Newer version of Tensorflow (such as 2.x) does not work because of the new APIs. Windows 10 should be OK to run the code, only the installation of the dependencies (such as Gym environment and SpinningUp could be bumpy).
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4009286.svg)](https://doi.org/10.5281/zenodo.4009286)
+## Code Updates
+The primary train (ppo-pick-jobs.py) and test (compare-pick-jobs.py) have been updated to replace Tensorflow/SpinningUp with StablenBaselines 3 integration. In ppo-pick-jobs.py, this change entailed updating actor and critic models from tensorflow to pytorch as well as formatting their input/output to match with SB3's expected policy input/output. Additionally, effective use of SB3 allowed for simplification of the ppo-pick-jobs code improving overall interpretability. In compare-pick-jobs, the largest change entailed removing the old custom model loading function and replacing it with SB3 load function. Additionally, the HPC environment (HPCSimPickJobs.py) was converted to work with SB3, mostly py replacing tensorflow code with pytorch code.
+
+Unfinished TODOs: 
+- Investigate the current low performance of the SB3 based model
+- Add more docs to functions/classes throughout
+- Remove code files which are no longer necessary/used
 
 ## Citing RLScheduler
 The relevant research paper has been published at SC20. If you reference or use RLScheduler in your research, please cite:
