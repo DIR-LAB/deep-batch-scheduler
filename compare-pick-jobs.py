@@ -145,7 +145,7 @@ if __name__ == '__main__':
     import time
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--rlmodel', type=str, default="ppo_HPC")
+    parser.add_argument('--rlmodel', type=str, default="./data/ppo_HPC")
     parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')
     parser.add_argument('--len', '-l', type=int, default=1024)
     parser.add_argument('--seed', '-s', type=int, default=1)

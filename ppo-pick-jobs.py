@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.policies import ActorCriticPolicy
+from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3 import PPO
 from torch.nn.functional import relu, softmax
 from torch.nn import MultiheadAttention
@@ -182,7 +183,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')  # RICC-2010-2 lublin_256.swf SDSC-SP2-1998-4.2-cln.swf
-    parser.add_argument('--model', type=str, default='./data/lublin_256.schd')
+    parser.add_argument('--model_dir', type=str, default='./data/')
     parser.add_argument('--gamma', type=float, default=1)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--cpu', type=int, default=1)
@@ -209,9 +210,10 @@ if __name__ == '__main__':
     env = init_env(workload_file, args)
     if args.trained_model is not None:
         model = PPO.load(args.trained_model, env=env)
-        PPO(CustomActorCriticPolicy, env, learning_rate=3e-4, seed=0, n_epochs=50, gamma=0.99, clip_range=0.2, gae_lambda=0.97, target_kl=0.01, policy_kwargs=dict())
+        PPO(CustomActorCriticPolicy, env, learning_rate=3e-4, seed=0, n_epochs=50, gamma=0.99, clip_range=0.2, gae_lambda=0.97, target_kl=0.01, policy_kwargs=dict(), normalize_advantage=True, tensorboard_log=os.getcwd())
     else:
         
-        model = PPO(CustomActorCriticPolicy, env, learning_rate=3e-4, seed=0, n_epochs=50, gamma=0.99, clip_range=0.2, gae_lambda=0.97, target_kl=0.01, policy_kwargs=dict(), tensorboard_log=os.getcwd())
+        model = PPO(CustomActorCriticPolicy, env, learning_rate=3e-4, seed=0, n_epochs=50, gamma=0.99, clip_range=0.2, gae_lambda=0.97, target_kl=0.01, policy_kwargs=dict(), tensorboard_log=os.getcwd(), normalize_advantage=True)
+        callback = ReplayBuffer(args.trajs, observation_space=model.observation_space, action_space=model.action_space)
         model.learn(200000, progress_bar=True)
-        model.save("ppo_HPC")
+        model.save(f"{args.model_dir}ppo_HPC")
