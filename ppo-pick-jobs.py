@@ -264,10 +264,6 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
         if self.ortho_init:
-            # TODO: check for features_extractor
-            # Values from stable-baselines.
-            # features_extractor/mlp values are
-            # originally from openai/baselines (default gains/init_scales).
             module_gains = {
                 self.features_extractor: np.sqrt(2),
                 self.mlp_extractor: np.sqrt(2),
