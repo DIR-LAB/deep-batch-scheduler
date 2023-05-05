@@ -17,7 +17,7 @@ MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
 
 # each job has three features: wait_time, requested_node, runtime, machine states,
-JOB_FEATURES = 8
+JOB_FEATURES = 9
 DEBUG = False
 
 JOB_SEQUENCE_SIZE = 256
@@ -39,7 +39,7 @@ class HPCEnv(Env):
 
         self.action_space = Discrete(MAX_QUEUE_SIZE)
         self.observation_space = Box(low=0.0, high=1.0,
-                                            shape=(JOB_FEATURES * MAX_QUEUE_SIZE,),
+                                            shape=((JOB_FEATURES) * MAX_QUEUE_SIZE,),
                                             dtype=np.float32)
 
         self.job_queue = []
@@ -409,9 +409,6 @@ class HPCEnv(Env):
             total_cpu_hour = (self.current_timestamp - self.loads[self.start].submit_time)*self.loads.max_procs
             for i in scheduled_logs:
                 scheduled_logs[i] /= total_cpu_hour
-        elif self.job_score_type == 4:
-            for i in scheduled_logs:
-                scheduled_logs[i] /= self.num_job_in_batch
         else:
             raise NotImplementedError
     #@profile
@@ -490,7 +487,7 @@ class HPCEnv(Env):
         return vector
 
     def build_observation(self):
-        vector = np.zeros((MAX_QUEUE_SIZE) * JOB_FEATURES, dtype=float)
+        vector = np.zeros((MAX_QUEUE_SIZE) * (JOB_FEATURES), dtype=float)
         self.job_queue.sort(key=lambda job: self.fcfs_score(job))
         self.visible_jobs = []
         for i in range(0, MAX_QUEUE_SIZE):
@@ -610,19 +607,20 @@ class HPCEnv(Env):
                     can_schedule_now = 1.0 - 1e-5
                 else:
                     can_schedule_now = 1e-5
-                self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, normalized_request_memory, normalized_user_id, normalized_group_id, normalized_executable_id, can_schedule_now])
+                self.pairs.append([job,normalized_wait_time, normalized_run_time, normalized_request_nodes, normalized_request_memory, normalized_user_id, normalized_group_id, normalized_executable_id, can_schedule_now, 1])
 
             elif self.skip and not add_skip:  # the next job is skip
                 add_skip = True
                 if self.pivot_job:
-                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 1])
+                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 1, 0])
                 else:
-                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 0])
+                    self.pairs.append([None, 1, 1, 1, 1, 1, 1, 1, 0, 0])
             else:
-                self.pairs.append([None,0,1,1,1,1,1,1,0])
+                self.pairs.append([None,0,1,1,1,1,1,1,0, 0])
 
         for i in range(0, MAX_QUEUE_SIZE):
-            vector[i*JOB_FEATURES:(i+1)*JOB_FEATURES] = self.pairs[i][1:]
+                
+                vector[i*(JOB_FEATURES):(i+1)*(JOB_FEATURES)] = self.pairs[i][1:]
 
         return np.array(vector, dtype=np.float32)
 
@@ -808,6 +806,7 @@ class HPCEnv(Env):
 
         # after scheduling, check if job queue is empty, try to add jobs. 
         not_empty = self.moveforward_for_job()
+        #print(self.job_queue)
 
         if not_empty:
             # job_queue is not empty
@@ -822,12 +821,13 @@ class HPCEnv(Env):
 
     #@profile
     def step(self, a):
+        #print(f'index: {a} job queue: {len(self.job_queue)}')
         job_for_scheduling = self.pairs[a][0]
         if not job_for_scheduling:
             done, _ = self.skip_schedule()
         else:
             job_for_scheduling = self.pairs[a][0]
-            done = self.schedule(job_for_scheduling)            
+            done = self.schedule(job_for_scheduling)          
 
         if not done:
             obs = self.build_observation()
@@ -848,10 +848,12 @@ class HPCEnv(Env):
             else:
                 rwd = 1    
             '''
+            #print(f'reward: {rwd}')
             return [None, rwd, True, {'best_total': best_total, 'rl_total': rl_total, 'sjf': sjf, 'f1': f1, 'rwd2': rwd2}]
     
     def step_for_test(self, a):
         job_for_scheduling = self.pairs[a][0]
+        #print(job_for_scheduling)
 
         if not job_for_scheduling:
             # print("SKIP", end=" ")
