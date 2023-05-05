@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.policies import ActorCriticPolicy
-from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3 import PPO
 from torch.nn.functional import relu, softmax
 from torch.nn import MultiheadAttention
@@ -181,17 +180,29 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         """Build the feature extractor using custom Torch model"""
         self.mlp_extractor = CustomTorchModel(self.observation_space, self.action_space)
 
-    def _predict(self, obs, deterministic=False):
+    def _predict(self, obs, deterministic):
         """Get the action and the value for a given observation"""
         # Preprocess the observation if needed
         features = self.extract_features(obs)
         latent_pi, mask = self.mlp_extractor.forward_actor(features)
-        latent_pi = torch.squeeze(latent_pi)
+        actions = self.ret_actions(latent_pi, mask, deterministic=deterministic)
+        return actions
+
+
+    def ret_actions(self, latent_pi, mask, deterministic=False, ret_dist=False, sample=True):
+        """Sample actions from the policy"""
+        actions = torch.squeeze(latent_pi)
         actions = self.action_net(latent_pi)
         actions = torch.flatten(actions)
         actions = actions+(mask*1000000)
         distribution = Categorical(logits=actions)
-        actions = torch.argmax(distribution.probs)
+        if sample:
+            if deterministic:
+                actions = torch.argmax(distribution.probs)
+            else:
+                actions = distribution.sample()
+        if ret_dist:
+            return actions, distribution
         return actions
 
 
@@ -205,18 +216,15 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         # Preprocess the observation if needed
         features = self.extract_features(obs)
         latent_pi, mask, latent_vf = self.mlp_extractor(features)
-        latent_pi = torch.squeeze(latent_pi)
-        actions = self.action_net(latent_pi)
-        actions = torch.flatten(actions)
-        actions = actions+(mask*1000000)
+        actions, distribution = self.ret_actions(latent_pi, mask, 
+                                                 False, ret_dist=True)
         # Evaluate the values for the given observations
         values = self.value_net(latent_vf)
         values = torch.flatten(values)
-        distribution = Categorical(logits=actions)
-        actions = distribution.sample()
         log_prob = distribution.log_prob(actions)
         actions = actions.reshape((-1, *self.action_space.shape))
         return actions, values, log_prob
+    
     def evaluate_actions(self, obs, actions):
         """
         Evaluate actions according to the current policy,
@@ -231,22 +239,28 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         latent_pi, mask, latent_vf = self.mlp_extractor(features)
         values = self.value_net(latent_vf)
         values = torch.flatten(values)
-        latent_pi = torch.squeeze(latent_pi)
-        latent_pi = self.action_net(latent_pi)
-        latent_pi = torch.flatten(latent_pi)
-        latent_pi = latent_pi+(mask*1000000)
-        distribution = Categorical(logits=latent_pi)
+        _, distribution = self.ret_actions(latent_pi, mask, 
+                                                      sample=False, ret_dist=True)
         log_prob = distribution.log_prob(actions)
         entropy = distribution.entropy()
         return values, log_prob, entropy
     
-    def act_net(self, latent_pi):
+    def actor_head(self, latent_pi):
         """Forward pass for actor network
         Args:
             latent_pi (torch.Tensor): latent pi tensor
         Returns:
             torch.Tensor: output tensor"""
         net = nn.Linear(in_features=latent_pi, out_features=1)
+        return net
+    
+    def value_head(self, latent_vf):
+        """Forward pass for critic network
+        Args:
+            latent_vf (torch.Tensor): latent vf tensor
+        Returns:
+            torch.Tensor: output tensor"""
+        net = nn.Linear(in_features=latent_vf, out_features=1)
         return net
     
     def _build(self, lr_schedule) -> None:
@@ -258,9 +272,9 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         self._build_mlp_extractor()
 
         latent_dim_pi = self.mlp_extractor.latent_dim_pi
-        self.action_net = self.act_net(latent_dim_pi)
+        self.action_net = self.actor_head(latent_dim_pi)
 
-        self.value_net = nn.Linear(in_features=self.mlp_extractor.latent_dim_vf, out_features=1)
+        self.value_net = self.value_head(self.mlp_extractor.latent_dim_vf)
         # Init weights: use orthogonal initialization
         # with small initial weight for the output
         if self.ortho_init:
@@ -323,23 +337,18 @@ if __name__ == '__main__':
     parser.add_argument('--skip', type=int, default=0)
     parser.add_argument('--score_type', type=int, default=0)
     parser.add_argument('--batch_job_slice', type=int, default=0)
-
     args = parser.parse_args()
 
     # init directories
     model_dir, log_data_dir, workload_file = init_dir_from_args(args)
+
     # create environment
     env = init_env(workload_file, args)
     if args.trained_model is not None:
         model = PPO.load(args.trained_model, env=env)
-        PPO(CustomActorCriticPolicy, env, learning_rate=3e-4, 
-            seed=args.seed, n_epochs=args.epochs, gamma=args.gamma, 
-            clip_range=0.2, gae_lambda=0.97, target_kl=0.01, 
-            policy_kwargs=dict(), normalize_advantage=True, 
-            tensorboard_log=log_data_dir, device=args.device)
     else:
         model = PPO(CustomActorCriticPolicy, env, learning_rate=args.lr, 
-                    seed=args.seed, n_epochs=args.epochs, batch_size=args.batch_size , 
+                    seed=args.seed, n_epochs=args.epochs, batch_size=args.batch_size, 
                     n_steps=args.rollout_steps, gamma=args.gamma, 
                     clip_range=args.clip_range, gae_lambda=args.gae_lambda, 
                     target_kl=args.target_kl, policy_kwargs=dict(), tensorboard_log=log_data_dir, 

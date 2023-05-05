@@ -1,28 +1,13 @@
 import matplotlib.pyplot as plt
 from stable_baselines3 import PPO
 from HPCSimPickJobs import *
-import os.path as osp
 import numpy as np
 import time
 import math
 import os
-from tqdm import tqdm
 
 
 plt.rcdefaults()
-
-def action_from_obs(o):
-    lst = []
-    for i in range(0, MAX_QUEUE_SIZE * JOB_FEATURES, JOB_FEATURES):
-        if o[i] == 0 and o[i + 1] == 1 and o[i + 2] == 1 and o[i + 3] == 0:
-            pass
-        elif o[i] == 1 and o[i + 1] == 1 and o[i + 2] == 1 and o[i + 3] == 1:
-            pass
-        else:
-            lst.append((o[i+1],math.floor(i/JOB_FEATURES)))
-    min_time = min([i[0] for i in lst])
-    result = [i[1] for i in lst if i[0]==min_time]
-    return result[0]
 
 #@profile
 def run_policy(env, get_probs, nums, iters, score_type):

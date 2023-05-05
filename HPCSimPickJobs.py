@@ -7,7 +7,7 @@ import sys
 import os
 from gym.spaces import Box, Discrete
 from gym.utils import seeding
-from gym import spaces, Env
+from gym import Env
 import argparse
 
 MAX_QUEUE_SIZE = 128
@@ -840,15 +840,6 @@ class HPCEnv(Env):
             f1 = self.scheduled_scores[1]
             rwd2 = (best_total - rl_total)
             rwd = -rl_total
-            '''
-            if (best_total) < rl_total:
-                rwd = -1
-            elif best_total == rl_total:
-                rwd = 0
-            else:
-                rwd = 1    
-            '''
-            #print(f'reward: {rwd}')
             return [None, rwd, True, {'best_total': best_total, 'rl_total': rl_total, 'sjf': sjf, 'f1': f1, 'rwd2': rwd2}]
     
     def step_for_test(self, a):
