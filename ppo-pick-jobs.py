@@ -13,7 +13,7 @@ from functools import partial
 
 class CustomTorchModel(nn.Module):
 
-    def __init__(self, observation_space, action_space, actor_model='kernel', critic_model='critic_lg'):
+    def __init__(self, actor_model='kernel', critic_model='critic_lg'):
         """ Initialize the custom model
         :param observation_space: (gym.spaces.Box)
         :param action_space: (gym.spaces.Discrete)
@@ -34,10 +34,9 @@ class CustomTorchModel(nn.Module):
             nn.ReLU(),
             nn.Linear(in_features=32, out_features=16),
             nn.ReLU(),
-            nn.Linear(in_features=16, out_features=8),
+            nn.Linear(in_features=16, out_features=self.latent_dim_pi),
             nn.ReLU()
         )
-
         self.lenet = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(),
@@ -62,7 +61,7 @@ class CustomTorchModel(nn.Module):
             nn.ReLU(),
             nn.Linear(in_features=64, out_features=32),
             nn.ReLU(),
-            nn.Linear(in_features=32, out_features=8),
+            nn.Linear(in_features=32, out_features=self.latent_dim_vf),
             nn.ReLU()
         )
         self.critic_un_lg = nn.Sequential(
@@ -130,14 +129,12 @@ class CustomTorchModel(nn.Module):
                 output = self.attn_layer(queries, keys, values)[0]
                 x = softmax(output, dim=1)
                 x = relu(nn.Linear(in_features=x.shape[-1], out_features=16)(x))
-                x = relu(nn.Linear(in_features=16, out_features=8)(x))
-                x = nn.Linear(in_features=8, out_features=self.latent_dim_pi)(x)
+                x = relu(nn.Linear(in_features=16, out_features=self.latent_dim_pi)(x))
             else:
                 x = self.models[self.actor_model](x)
             return x, mask
         else:
-            #TODO: Add error handling
-            pass
+            raise NotImplementedError(f'Actor model: {self.actor_model} not implemented')
 
         return x
 
@@ -178,7 +175,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
     
     def _build_mlp_extractor(self) -> None:
         """Build the feature extractor using custom Torch model"""
-        self.mlp_extractor = CustomTorchModel(self.observation_space, self.action_space)
+        self.mlp_extractor = CustomTorchModel()
 
     def _predict(self, obs, deterministic):
         """Get the action and the value for a given observation"""

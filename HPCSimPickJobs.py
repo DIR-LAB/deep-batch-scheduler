@@ -23,15 +23,6 @@ DEBUG = False
 JOB_SEQUENCE_SIZE = 256
 SKIP_TIME = 360 # skip 60 seconds
 
-def combined_shape(length, shape=None):
-    if shape is None:
-        return (length,)
-    return (length, shape) if np.isscalar(shape) else (length, *shape)
-
-def discount_cumsum(x, discount):
-    return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
-
-
 class HPCEnv(Env):
     def __init__(self,shuffle=False, backfil=False, skip=False, job_score_type=0, batch_job_slice=0, build_sjf=False): 
         super(HPCEnv, self).__init__()
@@ -182,14 +173,12 @@ class HPCEnv(Env):
         return (request_processors, submit_time)
 
     def wfp_score(self, job):
-        submit_time = job.submit_time
         request_processors = job.request_number_of_processors
         request_time = job.request_time
         waiting_time = job.scheduled_time-job.submit_time
         return -np.power(float(waiting_time)/request_time, 3)*request_processors
 
     def uni_score(self,job):
-        submit_time = job.submit_time
         request_processors = job.request_number_of_processors
         request_time = job.request_time
         waiting_time = job.scheduled_time-job.submit_time
@@ -282,12 +271,7 @@ class HPCEnv(Env):
             self.gen_preworkloads(job_sequence_size + self.np_random.randint(job_sequence_size))
 
         self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.sjf_score).values()))
-        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))
-        # self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.smallest_score).values()))
-        # self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.fcfs_score).values()))
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f2_score).values()))
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f3_score).values()))
-        #self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f4_score).values()))        
+        self.scheduled_scores.append(sum(self.schedule_curr_sequence_reset(self.f1_score).values()))     
 
         return self.build_observation()
 
@@ -316,7 +300,7 @@ class HPCEnv(Env):
             self.start = self.np_random.randint(job_sequence_size, (self.loads.size() - job_sequence_size - 1))
         else:
             self.start = self.np_random.randint(job_sequence_size, (self.batch_job_slice - job_sequence_size - 1))
-        #self.start = start
+
         self.start_idx_last_reset = self.start
         self.num_job_in_batch = job_sequence_size
         self.last_job_in_batch = self.start + self.num_job_in_batch
@@ -540,9 +524,7 @@ class HPCEnv(Env):
             index = 0
 
             while index < MAX_QUEUE_SIZE:
-                f1_job = visible_f1[f1_index]
                 f1_index += 1
-                f2_job = visible_f2[f2_index]
                 f2_index += 1
                 sjf_job = visible_sjf[sjf_index]
                 sjf_index += 1
@@ -550,12 +532,6 @@ class HPCEnv(Env):
                 small_index += 1
                 random_job = visible_sjf[random_index]
                 random_index += 1
-                #if (not f1_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
-                #    self.visible_jobs.append(f1_job)
-                #    index += 1
-                #if (not f2_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
-                #    self.visible_jobs.append(f2_job)
-                #    index += 1
                 if (not sjf_job in self.visible_jobs) and index < MAX_QUEUE_SIZE:
                     self.visible_jobs.append(sjf_job)
                     index += 1
@@ -744,9 +720,7 @@ class HPCEnv(Env):
                 /job_for_scheduling.run_time
         else:
             raise NotImplementedError
-
-            # Weight larger jobs.
-        #_tmp = _tmp * (job_for_scheduling.run_time * job_for_scheduling.request_number_of_processors)
+        
         return _tmp
 
     def has_only_one_job(self):

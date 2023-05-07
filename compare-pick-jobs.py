@@ -20,8 +20,6 @@ def run_policy(env, get_probs, nums, iters, score_type):
 
     fcfs_r = []
 
-    # time_total = 0
-    # num_total = 0
     for iter_num in range(0, iters):
         start = iter_num *args.len
         env.reset_for_test(nums,start)
@@ -77,16 +75,12 @@ def run_policy(env, get_probs, nums, iters, score_type):
     all_data.append(sjf_r)
     all_data.append(f1_r)
     all_data.append(rl_r)
-    #all_data.append(fcfs_r)
     
 
     all_medians = []
     for p in all_data:
         all_medians.append(np.median(p))
 
-    # plt.rc("font", size=45)
-    # plt.figure(figsize=(12, 7))
-    # plt.ylim([0,400])
     plt.rc("font", size=23)
     plt.figure(figsize=(9, 5))
     axes = plt.axes()
@@ -106,7 +100,7 @@ def run_policy(env, get_probs, nums, iters, score_type):
     axes.yaxis.grid(True)
     axes.set_xticks([y + 1 for y in range(len(all_data))])
     xticklabels = ['FCFS', 'WFP', 'UNI', 'SJF', 'F1', 'RL']
-    # xticklabels = ['FCFS', 'WFP', 'UNI', 'SJF', 'RL']
+
     plt.setp(axes, xticks=[y + 1 for y in range(len(all_data))],
              xticklabels=xticklabels)
     if score_type == 0:
@@ -155,8 +149,6 @@ if __name__ == '__main__':
     env.seed(args.seed) 
 
     model = PPO.load(args.rlmodel, env=env)
-    
-    
 
     start = time.time()
 
