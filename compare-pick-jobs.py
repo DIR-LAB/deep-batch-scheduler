@@ -12,8 +12,7 @@ plt.rcdefaults()
 #@profile
 def run_policy(env, get_probs, nums, iters, score_type):
     rl_r = []
-    f1_r = [] 
-    f2_r = []
+    f1_r = []
     sjf_r = []
     wfp_r = []
     uni_r = []
@@ -125,8 +124,8 @@ if __name__ == '__main__':
     import time
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--rlmodel', type=str, default="./trained_models/bsld/lublin_256/ppo_HPC.zip")
-    parser.add_argument('--workload', type=str, default='./data/lublin_256.swf')
+    parser.add_argument('--rlmodel', type=str, default="./trained_models/bsld/SDSC-SP2-1998-4/ppo_HPC.zip")
+    parser.add_argument('--workload', type=str, default='./data/SDSC-SP2-1998-4.2-cln.swf')
     parser.add_argument('--len', '-l', type=int, default=1024)
     parser.add_argument('--seed', '-s', type=int, default=1)
     parser.add_argument('--iter', '-i', type=int, default=10)

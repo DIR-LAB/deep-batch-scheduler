@@ -11,7 +11,6 @@ from gym import Env
 import argparse
 
 MAX_QUEUE_SIZE = 128
-MLP_SIZE = 256
 
 MAX_WAIT_TIME = 12 * 60 * 60 # assume maximal wait time is 12 hours.
 MAX_RUN_TIME = 12 * 60 * 60 # assume maximal runtime is 12 hours
